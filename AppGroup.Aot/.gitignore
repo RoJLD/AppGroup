@@ -1,0 +1,6 @@
+# Build output
+bin/
+obj/
+
+# Throwaway experiment sub-project (not part of the AOT CLI)
+temp/

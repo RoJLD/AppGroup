@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- Enable Native AOT -->
+    <PublishAot>true</PublishAot>
+    <!-- Optional: Reduce size by trimming -->
+    <PublishTrimmed>true</PublishTrimmed>
+    <!-- For Windows native AOT -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <!-- Make it self-contained for true Native AOT -->
+    <SelfContained>true</SelfContained>
+  </PropertyGroup>
+
+  <!-- Exclude the throwaway "temp" sub-project so its generated AssemblyInfo.cs
+       and Program.cs are not pulled into this project's compilation (CS0579). -->
+  <ItemGroup>
+    <Compile Remove="temp/**/*.cs" />
+    <Content Remove="temp/**/*" />
+    <None Remove="temp/**/*" />
+  </ItemGroup>
+
+</Project>
