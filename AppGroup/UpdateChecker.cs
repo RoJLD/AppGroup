@@ -7,8 +7,8 @@ using System.Threading.Tasks;
 
 namespace AppGroup {
     public class UpdateChecker {
-        private const string GITHUB_API_URL = "https://api.github.com/repos/iandiv/AppGroup/releases/latest";
-        private const string RELEASES_URL = "https://github.com/iandiv/AppGroup/releases/latest";
+        private const string GITHUB_API_URL = "https://api.github.com/repos/RoJLD/AppGroup/releases/latest";
+        private const string RELEASES_URL = "https://github.com/RoJLD/AppGroup/releases/latest";
         private static readonly HttpClient _httpClient;
 
         static UpdateChecker() {

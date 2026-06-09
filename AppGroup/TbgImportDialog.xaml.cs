@@ -7,7 +7,7 @@ using System.Linq;
 
 namespace AppGroup {
     public class TbgGroupPreviewItem : INotifyPropertyChanged {
-        public TbgGroupPreview Preview { get; set; }
+        public TbgGroupPreview Preview { get; set; } = null!;
         public string GroupName => Preview.GroupName;
         public int ShortcutCount => Preview.ShortcutCount;
         public int GroupCol => Preview.GroupCol;
@@ -21,8 +21,8 @@ namespace AppGroup {
             set { _isSelected = value; PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSelected))); }
         }
 
-        public event PropertyChangedEventHandler PropertyChanged;
-        public string GroupIcon { get; set; }
+        public event PropertyChangedEventHandler? PropertyChanged;
+        public string GroupIcon { get; set; } = string.Empty;
 
     }
 

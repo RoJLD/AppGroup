@@ -83,7 +83,10 @@ namespace AppGroup {
             string filePath = GetUsageFilePath();
 
             try {
-                Directory.CreateDirectory(Path.GetDirectoryName(filePath));
+                string? directory = Path.GetDirectoryName(filePath);
+                if (directory != null) {
+                    Directory.CreateDirectory(directory);
+                }
                 File.WriteAllText(filePath, count.ToString());
             }
             catch (Exception ex) {

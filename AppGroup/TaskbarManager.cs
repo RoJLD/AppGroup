@@ -1,10 +1,10 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
-using IWshRuntimeLibrary;
+using AppGroup.Interop;
+using AppGroup.Utilities;
 
 namespace AppGroup {
     public class TaskbarManager {
@@ -22,12 +22,11 @@ namespace AppGroup {
                         return false;
 
                     var taskbarShortcuts = Directory.GetFiles(taskbarPath, "*.lnk");
-                    IWshShell wshShell = new WshShell();
 
                     foreach (string shortcutFile in taskbarShortcuts) {
                         try {
-                            IWshShortcut shortcut = (IWshShortcut)wshShell.CreateShortcut(shortcutFile);
-                            if (shortcut.Arguments.Contains($"\"{groupName}\"")) {
+                            string? arguments = ShortcutHelper.GetShortcutArguments(shortcutFile);
+                            if (arguments != null && arguments.Contains($"\"{groupName}\"")) {
                                 return true;
                             }
                         }
@@ -52,7 +51,7 @@ namespace AppGroup {
                     await Task.Delay(100);
                     
                     // Force taskbar redraw
-                    IntPtr taskbarWindow = NativeMethods.FindWindow("Shell_TrayWnd", null);
+                    IntPtr taskbarWindow = NativeMethods.FindWindow("Shell_TrayWnd", null!);
                     if (taskbarWindow != IntPtr.Zero) {
                         NativeMethods.InvalidateRect(taskbarWindow, IntPtr.Zero, true);
                     }
@@ -70,7 +69,7 @@ namespace AppGroup {
                     // Just the essential refresh operations
                     NativeMethods.SHChangeNotify(NativeMethods.SHCNE_ASSOCCHANGED, NativeMethods.SHCNF_FLUSH, IntPtr.Zero, IntPtr.Zero);
                     
-                    IntPtr taskbarWindow = NativeMethods.FindWindow("Shell_TrayWnd", null);
+                    IntPtr taskbarWindow = NativeMethods.FindWindow("Shell_TrayWnd", null!);
                     if (taskbarWindow != IntPtr.Zero) {
                         NativeMethods.InvalidateRect(taskbarWindow, IntPtr.Zero, true);
                     }
@@ -114,12 +113,12 @@ namespace AppGroup {
             });
         }
 
-        private static string _cachedTaskbarPath;
-        private static string _cachedExePath;
+        private static string? _cachedTaskbarPath;
+        private static string? _cachedExePath;
         private static readonly object _lockObject = new object(); // Thread safety for caching
 
         // Helper method to extract group name from quoted arguments
-        private static string ExtractGroupNameFromArguments(string arguments) {
+        private static string? ExtractGroupNameFromArguments(string arguments) {
             if (string.IsNullOrEmpty(arguments))
                 return null;
 
@@ -155,7 +154,7 @@ namespace AppGroup {
                     if (_cachedExePath == null) {
                         lock (_lockObject) {
                             _cachedExePath ??= Process.GetCurrentProcess().MainModule?.FileName ??
-                                              Path.Combine(Path.GetDirectoryName(Environment.ProcessPath), "AppGroup.exe");
+                                              Path.Combine(Path.GetDirectoryName(Environment.ProcessPath) ?? string.Empty, "AppGroup.exe");
                         }
                     }
 
@@ -164,98 +163,89 @@ namespace AppGroup {
 
                     bool groupNameChanged = oldGroupName != newGroupName;
 
-                    // Create COM object once and reuse
-                    IWshShell wshShell = new WshShell();
-                    try {
-                        foreach (string shortcutFile in taskbarShortcuts) {
-                            try {
-                                IWshShortcut shortcut = (IWshShortcut)wshShell.CreateShortcut(shortcutFile);
-                                try {
-                                    // Pre-fetch properties once to avoid multiple COM calls
-                                    string targetPath = shortcut.TargetPath;
-                                    string arguments = shortcut.Arguments;
-                                    string description = shortcut.Description;
+                    foreach (string shortcutFile in taskbarShortcuts) {
+                        try {
+                            // Read shortcut properties using P/Invoke
+                            string? targetPath = ShortcutHelper.GetShortcutTarget(shortcutFile);
+                            string? arguments = ShortcutHelper.GetShortcutArguments(shortcutFile);
+                            string? description = ShortcutHelper.GetShortcutDescription(shortcutFile);
 
-                                    // Check if this is our executable
-                                    if (!targetPath.Equals(_cachedExePath, StringComparison.OrdinalIgnoreCase))
-                                        continue;
+                            if (targetPath == null || arguments == null || description == null)
+                                continue;
 
-                                    // Extract group name from quoted arguments
-                                    string extractedGroupName = ExtractGroupNameFromArguments(arguments);
+                            // Check if this is our executable
+                            if (!targetPath.Equals(_cachedExePath, StringComparison.OrdinalIgnoreCase))
+                                continue;
 
-                                    // Check for exact match with the old group name
-                                    bool isOurShortcut = false;
+                            // Extract group name from quoted arguments
+                            string? extractedGroupName = ExtractGroupNameFromArguments(arguments);
 
-                                    if (!string.IsNullOrEmpty(extractedGroupName)) {
-                                        // Exact match with extracted group name
-                                        isOurShortcut = extractedGroupName.Equals(oldGroupName, StringComparison.OrdinalIgnoreCase);
-                                    }
-                                    else {
-                                        // Fallback: check description for exact match
-                                        isOurShortcut = description.Equals($"{oldGroupName} - AppGroup Shortcut", StringComparison.OrdinalIgnoreCase);
-                                    }
+                            // Check for exact match with the old group name
+                            bool isOurShortcut = false;
 
-                                    if (isOurShortcut) {
-                                        string shortcutFileName = Path.GetFileNameWithoutExtension(shortcutFile);
-                                        Console.WriteLine($"Updating taskbar shortcut: {shortcutFileName}");
-                                        Console.WriteLine($"Extracted group name: '{extractedGroupName}'");
-                                        Console.WriteLine($"Target group name: '{oldGroupName}'");
-
-                                        // Update icon location
-                                        shortcut.IconLocation = iconPath;
-
-                                        // Update arguments if group name changed
-                                        if (groupNameChanged && !string.IsNullOrEmpty(extractedGroupName)) {
-                                            // Replace the exact quoted group name
-                                            string oldQuotedName = $"\"{extractedGroupName}\"";
-                                            string newQuotedName = $"\"{newGroupName}\"";
-                                            shortcut.Arguments = arguments.Replace(oldQuotedName, newQuotedName);
-
-                                            // Update description
-                                            shortcut.Description = $"{newGroupName} - AppGroup Shortcut";
-                                        }
-
-                                        shortcut.Save();
-
-                                        // Rename the shortcut file to match the new group name
-                                        if (groupNameChanged) {
-                                            try {
-                                                string newShortcutPath = Path.Combine(_cachedTaskbarPath, $"{newGroupName}.lnk");
-                                                // Only rename if the new filename doesn't already exist
-                                                if (!System.IO.File.Exists(newShortcutPath)) {
-                                                    System.IO.File.Move(shortcutFile, newShortcutPath);
-                                                    Console.WriteLine($"Renamed shortcut file to: {newGroupName}.lnk");
-                                                }
-                                                else {
-                                                    Console.WriteLine($"Cannot rename shortcut: {newGroupName}.lnk already exists");
-                                                }
-                                            }
-                                            catch (Exception ex) {
-                                                Console.WriteLine($"Error renaming shortcut file: {ex.Message}");
-                                            }
-                                        }
-
-                                        // Quick refresh without delays
-                                        //RefreshDesktop();
-                                        //await Task.Delay(200);
-
-                                        TryRefreshTaskbarWithoutRestartAsync();
-                                        return; // Exit early once we find and update our shortcut
-                                    }
-                                }
-                                finally {
-                                    // Release COM object immediately after use
-                                    System.Runtime.InteropServices.Marshal.ReleaseComObject(shortcut);
-                                }
+                            if (!string.IsNullOrEmpty(extractedGroupName)) {
+                                // Exact match with extracted group name
+                                isOurShortcut = extractedGroupName.Equals(oldGroupName, StringComparison.OrdinalIgnoreCase);
                             }
-                            catch (Exception ex) {
-                                Console.WriteLine($"Error processing shortcut {shortcutFile}: {ex.Message}");
+                            else {
+                                // Fallback: check description for exact match
+                                isOurShortcut = description.Equals($"{oldGroupName} - AppGroup Shortcut", StringComparison.OrdinalIgnoreCase);
+                            }
+
+                            if (isOurShortcut) {
+                                string shortcutFileName = Path.GetFileNameWithoutExtension(shortcutFile);
+                                Console.WriteLine($"Updating taskbar shortcut: {shortcutFileName}");
+                                Console.WriteLine($"Extracted group name: '{extractedGroupName}'");
+                                Console.WriteLine($"Target group name: '{oldGroupName}'");
+
+                                // Update icon location using ShortcutHelper
+                                ShortcutHelper.UpdateShortcut(shortcutFile, iconPath: iconPath);
+
+                                // Update arguments and description if group name changed
+                                if (groupNameChanged && !string.IsNullOrEmpty(extractedGroupName)) {
+                                    // Replace the exact quoted group name
+                                    string oldQuotedName = $"\"{extractedGroupName}\"";
+                                    string newQuotedName = $"\"{newGroupName}\"";
+                                    string newArguments = arguments.Replace(oldQuotedName, newQuotedName);
+                                    string newDescription = $"{newGroupName} - AppGroup Shortcut";
+
+                                    ShortcutHelper.UpdateShortcut(
+                                        shortcutFile,
+                                        arguments: newArguments,
+                                        description: newDescription,
+                                        iconPath: iconPath
+                                    );
+                                }
+
+                                // Rename the shortcut file to match the new group name
+                                if (groupNameChanged) {
+                                    try {
+                                        string newShortcutPath = Path.Combine(_cachedTaskbarPath, $"{newGroupName}.lnk");
+                                        // Only rename if the new filename doesn't already exist
+                                        if (!System.IO.File.Exists(newShortcutPath)) {
+                                            System.IO.File.Move(shortcutFile, newShortcutPath);
+                                            Console.WriteLine($"Renamed shortcut file to: {newGroupName}.lnk");
+                                        }
+                                        else {
+                                            Console.WriteLine($"Cannot rename shortcut: {newGroupName}.lnk already exists");
+                                        }
+                                    }
+                                    catch (Exception ex) {
+                                        Console.WriteLine($"Error renaming shortcut file: {ex.Message}");
+                                    }
+                                }
+
+                                // Quick refresh without delays
+                                //RefreshDesktop();
+                                //await Task.Delay(200);
+
+                                TryRefreshTaskbarWithoutRestartAsync();
+                                return; // Exit early once we find and update our shortcut
                             }
                         }
-                    }
-                    finally {
-                        // Release COM shell object
-                        System.Runtime.InteropServices.Marshal.ReleaseComObject(wshShell);
+                        catch (Exception ex) {
+                            Console.WriteLine($"Error processing shortcut {shortcutFile}: {ex.Message}");
+                        }
                     }
                 }
                 catch (Exception ex) {

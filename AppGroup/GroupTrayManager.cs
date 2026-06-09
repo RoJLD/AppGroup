@@ -1,15 +1,19 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
+using AppGroup.Interop;
+using AppGroup.Services;
 
 namespace AppGroup {
     public static class GroupTrayManager {
         private static int WM_TASKBARCREATED;
         private static IntPtr _hwnd = IntPtr.Zero;
-        private static NativeMethods.WndProcDelegate _wndProcDelegate;
+        // Conservé en champ static pour empêcher le GC de collecter le delegate passé en P/Invoke.
+        // Assigné dans EnsureWindow() avant toute utilisation native.
+        private static NativeMethods.WndProcDelegate _wndProcDelegate = null!;
         private static IntPtr _hMenu = IntPtr.Zero;
         private static int _menuActiveGroupId = -1;
 
@@ -26,7 +30,7 @@ namespace AppGroup {
         /// 
         public static void SyncFromJson() {
             try {
-                string jsonFilePath = JsonConfigHelper.GetDefaultConfigPath();
+                string jsonFilePath = ConfigService.GetDefaultConfigPath();
                 if (!File.Exists(jsonFilePath)) return;
 
                 string jsonContent = File.ReadAllText(jsonFilePath);
@@ -38,8 +42,8 @@ namespace AppGroup {
 
                 foreach (var property in groupDictionary) {
                     if (!int.TryParse(property.Key, out int groupId)) continue;
-                    string groupName = property.Value?["groupName"]?.GetValue<string>();
-                    string groupIcon = property.Value?["groupIcon"]?.GetValue<string>();
+                    string? groupName = property.Value?["groupName"]?.GetValue<string>();
+                    string? groupIcon = property.Value?["groupIcon"]?.GetValue<string>();
                     bool showOnTray = property.Value?["showOnTray"]?.GetValue<bool>() ?? false;
 
                     if (string.IsNullOrWhiteSpace(groupName)) continue;
@@ -49,7 +53,7 @@ namespace AppGroup {
                     var g = new GroupItem {
                         GroupId = groupId,
                         GroupName = groupName,
-                        GroupIcon = groupIcon,
+                        GroupIcon = groupIcon ?? string.Empty,
                         PathIcons = new System.Collections.Generic.List<string>()
                     };
                     AddGroup(g);
@@ -83,7 +87,7 @@ namespace AppGroup {
             var wc = new NativeMethods.WNDCLASSEX {
                 cbSize = (uint)Marshal.SizeOf<NativeMethods.WNDCLASSEX>(),
                 lpfnWndProc = Marshal.GetFunctionPointerForDelegate(_wndProcDelegate),
-                hInstance = NativeMethods.GetModuleHandle(null),
+                hInstance = NativeMethods.GetModuleHandle(null!),
                 hCursor = NativeMethods.LoadCursor(IntPtr.Zero, 32512u),
                 lpszClassName = WndClassName
             };
@@ -91,7 +95,7 @@ namespace AppGroup {
             WM_TASKBARCREATED = NativeMethods.RegisterWindowMessage("TaskbarCreated");
             _hwnd = NativeMethods.CreateWindowEx(0, WndClassName, "AppGroup GroupTray",
                 0, 0, 0, 0, 0, IntPtr.Zero, IntPtr.Zero,
-                NativeMethods.GetModuleHandle(null), IntPtr.Zero);
+                NativeMethods.GetModuleHandle(null!), IntPtr.Zero);
         }
 
         // ── Per-group icon ────────────────────────────────────────────────────
@@ -99,7 +103,7 @@ namespace AppGroup {
         private static void AddGroup(GroupItem g) {
             if (string.IsNullOrWhiteSpace(g.GroupName)) return;
 
-            string iconPath = !string.IsNullOrWhiteSpace(g.GroupIcon)
+            string? iconPath = !string.IsNullOrWhiteSpace(g.GroupIcon)
                 ? g.GroupIcon
                 : g.PathIcons?.Count > 0 ? g.PathIcons[0] : null;
 
@@ -152,13 +156,13 @@ namespace AppGroup {
 
         // ── Icon loading ──────────────────────────────────────────────────────
 
-        private static IntPtr LoadGroupIcon(string iconPath) {
+        private static IntPtr LoadGroupIcon(string? iconPath) {
             if (!string.IsNullOrWhiteSpace(iconPath)) {
                 // If FindOrigIcon returned a .png/.jpg, look for sibling .ico
                 string ext = Path.GetExtension(iconPath).ToLowerInvariant();
                 if (ext == ".png" || ext == ".jpg" || ext == ".jpeg") {
                     string icoPath = Path.Combine(
-                        Path.GetDirectoryName(iconPath),
+                        Path.GetDirectoryName(iconPath) ?? string.Empty,
                         Path.GetFileNameWithoutExtension(iconPath) + ".ico");
                     if (File.Exists(icoPath))
                         iconPath = icoPath;
@@ -260,7 +264,7 @@ namespace AppGroup {
 
         private static void EditGroup(string groupName) {
             try {
-                int groupId = JsonConfigHelper.FindKeyByGroupName(groupName);
+                int groupId = ConfigService.FindKeyByGroupName(groupName);
                 Launch($"EditGroupWindow --id={groupId}");
             }
             catch (Exception ex) {
@@ -286,3 +290,4 @@ namespace AppGroup {
         }
     }
 }
+

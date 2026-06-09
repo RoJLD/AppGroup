@@ -1,4 +1,3 @@
-﻿using IWshRuntimeLibrary;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -8,6 +7,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
+using AppGroup.Interop;
+using AppGroup.Utilities;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -35,7 +36,10 @@ namespace AppGroup {
                     // Check if the icon file exists
                     if (File.Exists(iconPath)) {
                         // Use your existing icon cache with the extracted path
-                        return await IconCache.GetIconPathAsync(iconPath);
+                        string? cached = await IconCache.GetIconPathAsync(iconPath);
+                        if (!string.IsNullOrEmpty(cached)) {
+                            return cached;
+                        }
                     }
                 }
             }
@@ -53,8 +57,11 @@ namespace AppGroup {
             }
 
             string[] possibleExtensions = { ".png", ".jpg", ".jpeg" };
-            string directory = Path.GetDirectoryName(icoFilePath);
+            string? directory = Path.GetDirectoryName(icoFilePath);
             string filenameWithoutExtension = Path.GetFileNameWithoutExtension(icoFilePath);
+            if (directory is null) {
+                return icoFilePath;
+            }
 
             foreach (string ext in possibleExtensions) {
                 string potentialPath = Path.Combine(directory, filenameWithoutExtension + ext);
@@ -76,9 +83,12 @@ namespace AppGroup {
                     return originalIconPath;
                 }
 
-                string directory = Path.GetDirectoryName(originalIconPath);
+                string? directory = Path.GetDirectoryName(originalIconPath);
                 string filenameWithoutExtension = Path.GetFileNameWithoutExtension(originalIconPath);
                 string extension = Path.GetExtension(originalIconPath);
+                if (directory is null) {
+                    return originalIconPath;
+                }
 
                 // Create new filename with _bg suffix
                 string newIconPath = Path.Combine(directory, $"{filenameWithoutExtension}_bg{extension}");
@@ -151,8 +161,11 @@ namespace AppGroup {
                     return originalIconPath;
                 }
 
-                string directory = Path.GetDirectoryName(originalIconPath);
+                string? directory = Path.GetDirectoryName(originalIconPath);
                 string filenameWithoutExtension = Path.GetFileNameWithoutExtension(originalIconPath);
+                if (directory is null) {
+                    return originalIconPath;
+                }
 
                 Console.WriteLine($"Converting PNG to B&W: {originalIconPath}");
 
@@ -223,8 +236,11 @@ namespace AppGroup {
                     borderColor = System.Drawing.Color.White;
                 }
 
-                string directory = Path.GetDirectoryName(originalIconPath);
+                string? directory = Path.GetDirectoryName(originalIconPath);
                 string filenameWithoutExtension = Path.GetFileNameWithoutExtension(originalIconPath);
+                if (directory is null) {
+                    return originalIconPath;
+                }
 
                 Console.WriteLine($"Adding bottom border to PNG: {originalIconPath}");
                 Console.WriteLine($"Border color: {borderColor}, Height: {borderHeight}px");
@@ -306,18 +322,19 @@ namespace AppGroup {
         //
         // Option 2 - Add black bottom border (15px):
         // string blackBorderIconPath = await CreateIconWithBottomBorderAsync("C:\\path\\to\\icon.png", System.Drawing.Color.Black, 15);
-        private static async Task<Bitmap> ExtractWindowsAppIconAsync(string shortcutPath, string outputDirectory) {
+        private static async Task<Bitmap?> ExtractWindowsAppIconAsync(string shortcutPath, string outputDirectory) {
             try {
                 // Get the shortcut target using Shell COM objects
-                Type shellType = Type.GetTypeFromProgID("Shell.Application");
+                Type? shellType = Type.GetTypeFromProgID("Shell.Application");
                 if (shellType == null) return null;
 
-                dynamic shell = Activator.CreateInstance(shellType);
+                dynamic? shell = Activator.CreateInstance(shellType);
+                if (shell is null) return null;
                 dynamic folder = shell.Namespace(Path.GetDirectoryName(shortcutPath));
                 dynamic shortcutItem = folder.ParseName(Path.GetFileName(shortcutPath));
 
                 // Find the "Link target" property
-                string linkTarget = null;
+                string? linkTarget = null;
                 for (int i = 0; i < 500; i++) {
                     string propertyName = folder.GetDetailsOf(null, i);
                     if (propertyName == "Link target") {
@@ -337,7 +354,7 @@ namespace AppGroup {
                 IEnumerable<Windows.ApplicationModel.Package> packages = packageManager.FindPackagesForUser("");
 
                 // Find the package that matches the app name
-                Windows.ApplicationModel.Package appPackage = packages.FirstOrDefault(p => p.Id.Name.StartsWith(appName, StringComparison.OrdinalIgnoreCase));
+                Windows.ApplicationModel.Package? appPackage = packages.FirstOrDefault(p => p.Id.Name.StartsWith(appName, StringComparison.OrdinalIgnoreCase));
                 if (appPackage == null) return null;
 
                 string installPath = appPackage.InstalledLocation.Path;
@@ -354,11 +371,11 @@ namespace AppGroup {
                 nsManager.AddNamespace("ns", "http://schemas.microsoft.com/appx/manifest/foundation/windows10");
 
                 // Get logo path from manifest
-                XmlNode logoNode = manifest.SelectSingleNode("/ns:Package/ns:Properties/ns:Logo", nsManager);
+                XmlNode? logoNode = manifest.SelectSingleNode("/ns:Package/ns:Properties/ns:Logo", nsManager);
                 if (logoNode == null) return null;
 
                 string logoPath = logoNode.InnerText;
-                string logoDir = Path.Combine(installPath, Path.GetDirectoryName(logoPath));
+                string logoDir = Path.Combine(installPath, Path.GetDirectoryName(logoPath) ?? string.Empty);
 
                 if (!Directory.Exists(logoDir)) return null;
 
@@ -368,7 +385,7 @@ namespace AppGroup {
 
         };
 
-                string highestResLogoPath = null;
+                string? highestResLogoPath = null;
                 long highestSize = 0;
 
                 foreach (string pattern in logoPatterns) {
@@ -403,7 +420,7 @@ namespace AppGroup {
         /// <summary>
         /// Resizes and crops an image to a square with the specified size
         /// </summary>
-        private static Bitmap ResizeAndCropImageToSquare(Bitmap originalImage, int size, float zoomFactor = 1.3f) {
+        private static Bitmap? ResizeAndCropImageToSquare(Bitmap originalImage, int size, float zoomFactor = 1.3f) {
             try {
                 // Create a new square bitmap
                 Bitmap resizedImage = new Bitmap(size, size);
@@ -448,14 +465,14 @@ namespace AppGroup {
             timeout ??= TimeSpan.FromSeconds(3);
             if (string.IsNullOrEmpty(folderPath) || !Directory.Exists(folderPath)) {
                 Debug.WriteLine($"Folder does not exist: {folderPath}");
-                return null;
+                return string.Empty;
             }
 
             try {
                 using var cts = new CancellationTokenSource(timeout.Value);
                 return await Task.Run(() => {
                     try {
-                        Bitmap iconBitmap = null;
+                        Bitmap? iconBitmap = null;
 
                         var thread = new System.Threading.Thread(() => {
                             NativeMethods.CoInitializeEx(IntPtr.Zero, NativeMethods.COINIT_APARTMENTTHREADED);
@@ -472,7 +489,7 @@ namespace AppGroup {
 
                         if (iconBitmap == null) {
                             Debug.WriteLine($"No icon extracted for folder: {folderPath}");
-                            return null;
+                            return string.Empty;
                         }
 
                         Directory.CreateDirectory(outputDirectory);
@@ -493,24 +510,24 @@ namespace AppGroup {
                     }
                     catch (OperationCanceledException) {
                         Debug.WriteLine($"Folder icon extraction timed out: {folderPath}");
-                        return null;
+                        return string.Empty;
                     }
                     catch (Exception ex) {
                         Debug.WriteLine($"Folder icon extraction error: {ex.Message}");
-                        return null;
+                        return string.Empty;
                     }
                 }, cts.Token);
             }
             catch (Exception ex) {
                 Debug.WriteLine($"ExtractFolderIconAndSaveAsync failed: {ex.Message}");
-                return null;
+                return string.Empty;
             }
         }
         public static async Task<string> ExtractIconAndSaveAsync(string filePath, string outputDirectory, TimeSpan? timeout = null) {
             timeout ??= TimeSpan.FromSeconds(3);
             if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) {
                 Debug.WriteLine($"File does not exist: {filePath}");
-                return null;
+                return string.Empty;
             }
 
 
@@ -534,15 +551,15 @@ namespace AppGroup {
                 using var cancellationTokenSource = new CancellationTokenSource(timeout.Value);
                 return await Task.Run(async () => {
                     try {
-                        Bitmap iconBitmap = null;
+                        Bitmap? iconBitmap = null;
                         if (Path.GetExtension(filePath).ToLower() == ".lnk") {
                             iconBitmap = await ExtractWindowsAppIconAsync(filePath, outputDirectory);
 
                             if (iconBitmap == null) {
                                 dynamic shell = Microsoft.VisualBasic.Interaction.CreateObject("WScript.Shell");
                                 dynamic shortcut = shell.CreateShortcut(filePath);
-                                string iconPath = shortcut.IconLocation;
-                                string targetPath = shortcut.TargetPath;
+                                string? iconPath = shortcut.IconLocation;
+                                string? targetPath = shortcut.TargetPath;
                                 if (!string.IsNullOrEmpty(iconPath) && iconPath != ",") {
                                     string[] iconInfo = iconPath.Split(',');
                                     string actualIconPath = iconInfo[0].Trim();
@@ -555,8 +572,8 @@ namespace AppGroup {
                                     iconBitmap = ExtractIconWithoutArrow(targetPath);
                                 }
                                 if (iconBitmap == null) {
-                                    Icon icon = Icon.ExtractAssociatedIcon(filePath);
-                                    iconBitmap = icon.ToBitmap();
+                                    Icon? icon = Icon.ExtractAssociatedIcon(filePath);
+                                    iconBitmap = icon?.ToBitmap();
                                 }
                             }
                         }
@@ -566,7 +583,7 @@ namespace AppGroup {
 
                         if (iconBitmap == null) {
                             Debug.WriteLine($"No icon found for file: {filePath}");
-                            return null;
+                            return string.Empty;
                         }
 
                         Directory.CreateDirectory(outputDirectory);
@@ -587,13 +604,13 @@ namespace AppGroup {
                     }
                     catch (OperationCanceledException) {
                         Debug.WriteLine($"Icon extraction timed out for: {filePath}");
-                        return null;
+                        return string.Empty;
                     }
                 }, cancellationTokenSource.Token);
             }
             catch (Exception ex) {
                 Debug.WriteLine($"Error extracting icon: {ex.Message}");
-                return null;
+                return string.Empty;
             }
         }
 
@@ -603,8 +620,10 @@ namespace AppGroup {
 
 
             try {
-                Type shellType = Type.GetTypeFromProgID("WScript.Shell");
-                dynamic shell = Activator.CreateInstance(shellType);
+                Type? shellType = Type.GetTypeFromProgID("WScript.Shell");
+                if (shellType is null) return lnkPath;
+                dynamic? shell = Activator.CreateInstance(shellType);
+                if (shell is null) return lnkPath;
                 var shortcut = shell.CreateShortcut(lnkPath);
                 string target = shortcut.TargetPath;
                 return File.Exists(target) ? target : lnkPath;
@@ -654,7 +673,7 @@ namespace AppGroup {
 
 
 
-        public static async Task<BitmapImage> ExtractIconFastAsync(string filePath, DispatcherQueue dispatcher) {
+        public static async Task<BitmapImage?> ExtractIconFastAsync(string filePath, DispatcherQueue dispatcher) {
             if (!File.Exists(filePath)) return null;
 
             if (Path.GetExtension(filePath).ToLower() == ".lnk") {
@@ -670,7 +689,7 @@ namespace AppGroup {
                             icon.ToBitmap().Save(stream, ImageFormat.Png);
                             stream.Position = 0;
 
-                            BitmapImage bitmapImage = null;
+                            BitmapImage? bitmapImage = null;
                             var resetEvent = new ManualResetEvent(false);
 
                             dispatcher.TryEnqueue(() => {
@@ -696,14 +715,14 @@ namespace AppGroup {
                 }
             });
         }
-        public static async Task<BitmapImage> ExtractLnkIconWithoutArrowAsync(string lnkPath, DispatcherQueue dispatcher) {
+        public static async Task<BitmapImage?> ExtractLnkIconWithoutArrowAsync(string lnkPath, DispatcherQueue dispatcher) {
             return await Task.Run(() => {
                 try {
                     dynamic shell = Microsoft.VisualBasic.Interaction.CreateObject("WScript.Shell");
                     dynamic shortcut = shell.CreateShortcut(lnkPath);
 
-                    string iconPath = shortcut.IconLocation;
-                    string targetPath = shortcut.TargetPath;
+                    string? iconPath = shortcut.IconLocation;
+                    string? targetPath = shortcut.TargetPath;
 
                     if (!string.IsNullOrEmpty(iconPath) && iconPath != ",") {
                         // Split the icon path and index
@@ -737,10 +756,10 @@ namespace AppGroup {
             });
         }
 
-        private static Bitmap ExtractSpecificIcon(string iconPath, int iconIndex) {
+        private static Bitmap? ExtractSpecificIcon(string iconPath, int iconIndex) {
             try {
                 IntPtr[] hIcons = new IntPtr[1];
-                uint iconCount = NativeMethods.ExtractIconEx(iconPath, iconIndex, hIcons, null, 1);
+                uint iconCount = NativeMethods.ExtractIconEx(iconPath, iconIndex, hIcons, null!, 1);
 
                 if (iconCount > 0 && hIcons[0] != IntPtr.Zero) {
                     using (var icon = Icon.FromHandle(hIcons[0])) {
@@ -758,9 +777,9 @@ namespace AppGroup {
             }
         }
 
-        private static Bitmap ExtractIconWithoutArrow(string targetPath) {
+        private static Bitmap? ExtractIconWithoutArrow(string targetPath) {
             try {
-                Bitmap result = null;
+                Bitmap? result = null;
 
                 // SHGetImageList requires STA — force it
                 var thread = new System.Threading.Thread(() => {
@@ -780,7 +799,7 @@ namespace AppGroup {
 
                 // Fallback: ExtractIconEx
                 IntPtr[] hIcons = new IntPtr[1];
-                uint count = NativeMethods.ExtractIconEx(targetPath, 0, hIcons, null, 1);
+                uint count = NativeMethods.ExtractIconEx(targetPath, 0, hIcons, null!, 1);
                 if (count > 0 && hIcons[0] != IntPtr.Zero) {
                     using (var icon = Icon.FromHandle(hIcons[0])) {
                         var bmp = new Bitmap(icon.ToBitmap());
@@ -796,14 +815,14 @@ namespace AppGroup {
             }
         }
 
-        private static BitmapImage CreateBitmapImageFromBitmap(Bitmap bitmap, DispatcherQueue dispatcher) {
+        private static BitmapImage? CreateBitmapImageFromBitmap(Bitmap? bitmap, DispatcherQueue dispatcher) {
             if (bitmap == null) return null;
 
             using (var stream = new MemoryStream()) {
                 bitmap.Save(stream, ImageFormat.Png);
                 stream.Position = 0;
 
-                BitmapImage bitmapImage = null;
+                BitmapImage? bitmapImage = null;
                 var resetEvent = new ManualResetEvent(false);
 
                 dispatcher.TryEnqueue(() => {
@@ -823,7 +842,7 @@ namespace AppGroup {
             }
         }
 
-        public static async Task<BitmapImage> ExtractIconFromFileAsync(string filePath, DispatcherQueue dispatcher) {
+        public static async Task<BitmapImage?> ExtractIconFromFileAsync(string filePath, DispatcherQueue dispatcher) {
             try {
                 if (!System.IO.File.Exists(filePath)) {
                     Debug.WriteLine($"File not found: {filePath}");
@@ -850,7 +869,7 @@ namespace AppGroup {
                             bitmap.Save(stream, ImageFormat.Png);
                             stream.Position = 0;
 
-                            BitmapImage bitmapImage = null;
+                            BitmapImage? bitmapImage = null;
 
                             var resetEvent = new ManualResetEvent(false);
 
@@ -897,7 +916,7 @@ namespace AppGroup {
             }
 
             try {
-                string tempIconPath = null;
+                string? tempIconPath = null;
 
                 // If the source file is an .exe, extract the icon first
                 if (Path.GetExtension(sourcePath).Equals(".exe", StringComparison.OrdinalIgnoreCase)) {
@@ -1040,8 +1059,8 @@ namespace AppGroup {
                 try {
                     File.Delete(tempGridIconPath);
                     // Also clean up temp directory if it exists
-                    string tempDir = Path.GetDirectoryName(tempGridIconPath);
-                    if (Directory.Exists(tempDir) && Directory.GetFiles(tempDir).Length == 0) {
+                    string? tempDir = Path.GetDirectoryName(tempGridIconPath);
+                    if (tempDir != null && Directory.Exists(tempDir) && Directory.GetFiles(tempDir).Length == 0) {
                         Directory.Delete(tempDir);
                     }
                 }
@@ -1061,7 +1080,7 @@ namespace AppGroup {
                 throw;
             }
         }
-        public static Bitmap ExtractJumboIcon(string filePath) {
+        public static Bitmap? ExtractJumboIcon(string filePath) {
             try {
                 var shfi = new NativeMethods.SHFILEINFO();
                 var result = NativeMethods.SHGetFileInfo(
@@ -1109,9 +1128,10 @@ namespace AppGroup {
         public static async Task<string> GetLnkIconAsync(string lnkPath) {
             return await Task.Run(() => {
                 try {
-                    var shell = new WshShell();
-                    var shortcut = (IWshShortcut)shell.CreateShortcut(lnkPath);
-                    string targetPath = Environment.ExpandEnvironmentVariables(shortcut.TargetPath?.Trim() ?? "");
+                    string? targetPath = ShortcutHelper.GetShortcutTarget(lnkPath);
+                    if (targetPath != null) {
+                        targetPath = Environment.ExpandEnvironmentVariables(targetPath.Trim());
+                    }
 
                     if (string.IsNullOrEmpty(targetPath) || !File.Exists(targetPath)) {
                         targetPath = ResolveLnkViaShellLink(lnkPath);
@@ -1127,7 +1147,7 @@ namespace AppGroup {
 
 
                         // Not cached yet — extract and store under target's cache key
-                        Bitmap result = null;
+                        Bitmap? result = null;
                         var thread = new System.Threading.Thread(() => {
                             NativeMethods.CoInitializeEx(IntPtr.Zero, NativeMethods.COINIT_APARTMENTTHREADED);
                             try {
@@ -1141,7 +1161,7 @@ namespace AppGroup {
                         thread.Start();
                         thread.Join();
 
-                        if (result == null) return null;
+                        if (result == null) return string.Empty;
 
                         string outputDir = Path.Combine(
                             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -1162,7 +1182,7 @@ namespace AppGroup {
                             return cachedPath;
 
 
-                        Bitmap result = null;
+                        Bitmap? result = null;
                         var thread = new System.Threading.Thread(() => {
                             NativeMethods.CoInitializeEx(IntPtr.Zero, NativeMethods.COINIT_APARTMENTTHREADED);
                             try {
@@ -1185,7 +1205,7 @@ namespace AppGroup {
                         thread.Start();
                         thread.Join();
 
-                        if (result == null) return null;
+                        if (result == null) return string.Empty;
 
                         string outputDir = Path.Combine(
                             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -1202,7 +1222,7 @@ namespace AppGroup {
                 }
                 catch (Exception ex) {
                     Debug.WriteLine($"[LNK Icon] Exception: {ex.Message}");
-                    return null;
+                    return string.Empty;
                 }
             });
         }
@@ -1210,8 +1230,10 @@ namespace AppGroup {
         // Resolves .lnk target via COM IShellLink when WshShortcut fails
         private static string ResolveLnkViaShellLink(string lnkPath) {
             try {
-                var shellLinkType = Type.GetTypeFromCLSID(new Guid("00021401-0000-0000-C000-000000000046"));
-                dynamic shellLink = Activator.CreateInstance(shellLinkType);
+                Type? shellLinkType = Type.GetTypeFromCLSID(new Guid("00021401-0000-0000-C000-000000000046"));
+                if (shellLinkType is null) return string.Empty;
+                dynamic? shellLink = Activator.CreateInstance(shellLinkType);
+                if (shellLink is null) return string.Empty;
                 var persistFile = (System.Runtime.InteropServices.ComTypes.IPersistFile)shellLink;
                 persistFile.Load(lnkPath, 0);
 
@@ -1273,11 +1295,11 @@ namespace AppGroup {
                                 y = row * cellSize;
                             }
 
-                            System.Drawing.Bitmap iconBitmap = null;
+                            System.Drawing.Bitmap? iconBitmap = null;
 
                             // 1. Always try cached PNG first (already correct size)
                             if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath)) {
-                                string cachedPath = await IconCache.GetIconPathAsync(filePath);
+                                string? cachedPath = await IconCache.GetIconPathAsync(filePath);
                                 if (!string.IsNullOrEmpty(cachedPath) && File.Exists(cachedPath)) {
                                     iconBitmap = new System.Drawing.Bitmap(cachedPath);
                                 }
@@ -1327,7 +1349,7 @@ namespace AppGroup {
             }
             catch (Exception ex) {
                 Debug.WriteLine($"Grid icon creation error: {ex.Message}");
-                return null;
+                return string.Empty;
             }
         }
 

@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace AppGroup {
     public sealed partial class SettingsDialog : ContentDialog {
-        private SettingsHelper.AppSettings _settings;
+        private SettingsHelper.AppSettings _settings = new SettingsHelper.AppSettings();
         private readonly DispatcherQueue _dispatcherQueue;
         private bool _isLoading = true;
         private bool _isCheckingForUpdates = false;
@@ -233,7 +233,7 @@ namespace AppGroup {
                 Debug.WriteLine($"Error saving popup theme: {ex.Message}");
             }
         }
-        private void UpdateAccentBackgroundState(string popupTheme) {
+        private void UpdateAccentBackgroundState(string? popupTheme) {
             bool isWindowsMode = popupTheme == "WindowsMode";
             AccentBackgroundToggle.IsEnabled = isWindowsMode;
             AccentBackgroundInfoBar.IsOpen = !isWindowsMode;

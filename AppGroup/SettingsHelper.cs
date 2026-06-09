@@ -27,7 +27,7 @@ namespace AppGroup {
             public bool PopupAccentBackground { get; set; } = true;
         }
 
-        private static AppSettings _currentSettings;
+        private static AppSettings? _currentSettings;
 
         public static async Task<AppSettings> LoadSettingsAsync() {
             try {
@@ -59,13 +59,14 @@ namespace AppGroup {
         private static async Task EnsureStartupSettingIsApplied() {
             try {
                 bool isInRegistry = IsInStartupRegistry();
+                AppSettings settings = _currentSettings ?? new AppSettings();
 
-                if (_currentSettings.RunAtStartup && !isInRegistry) {
+                if (settings.RunAtStartup && !isInRegistry) {
                     // Setting says run at startup but it's not in registry - add it
                     AddToStartup();
                     System.Diagnostics.Debug.WriteLine("Applied default startup setting: Added to startup");
                 }
-                else if (!_currentSettings.RunAtStartup && isInRegistry) {
+                else if (!settings.RunAtStartup && isInRegistry) {
                     // Setting says don't run at startup but it's in registry - remove it
                     RemoveFromStartup();
                     System.Diagnostics.Debug.WriteLine("Applied startup setting: Removed from startup");
@@ -79,10 +80,14 @@ namespace AppGroup {
 
         public static void AddToStartup() {
             try {
-                string exePath = Process.GetCurrentProcess().MainModule.FileName;
+                string? exePath = Process.GetCurrentProcess().MainModule?.FileName;
+                if (exePath == null) {
+                    System.Diagnostics.Debug.WriteLine("Cannot add to startup: executable path is unavailable");
+                    return;
+                }
                 string startupCommand = $"\"{exePath}\" --silent";
 
-                using (RegistryKey key = Registry.CurrentUser.OpenSubKey(STARTUP_REGISTRY_KEY, true)) {
+                using (RegistryKey? key = Registry.CurrentUser.OpenSubKey(STARTUP_REGISTRY_KEY, true)) {
                     if (key != null) {
                         key.SetValue(APP_NAME, startupCommand, RegistryValueKind.String);
                         System.Diagnostics.Debug.WriteLine($"Added to startup: {startupCommand}");
@@ -97,7 +102,7 @@ namespace AppGroup {
 
         public static void RemoveFromStartup() {
             try {
-                using (RegistryKey key = Registry.CurrentUser.OpenSubKey(STARTUP_REGISTRY_KEY, true)) {
+                using (RegistryKey? key = Registry.CurrentUser.OpenSubKey(STARTUP_REGISTRY_KEY, true)) {
                     if (key != null) {
                         if (key.GetValue(APP_NAME) != null) {
                             key.DeleteValue(APP_NAME, false);
@@ -114,9 +119,9 @@ namespace AppGroup {
 
         public static bool IsInStartupRegistry() {
             try {
-                using (RegistryKey key = Registry.CurrentUser.OpenSubKey(STARTUP_REGISTRY_KEY, false)) {
+                using (RegistryKey? key = Registry.CurrentUser.OpenSubKey(STARTUP_REGISTRY_KEY, false)) {
                     if (key != null) {
-                        object value = key.GetValue(APP_NAME);
+                        object? value = key.GetValue(APP_NAME);
                         return value != null;
                     }
                 }
@@ -129,7 +134,10 @@ namespace AppGroup {
 
         public static async Task SaveSettingsAsync(AppSettings settings) {
             try {
-                Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath));
+                string? settingsDir = Path.GetDirectoryName(SettingsPath);
+                if (settingsDir != null) {
+                    Directory.CreateDirectory(settingsDir);
+                }
 
                 var options = new JsonSerializerOptions {
                     WriteIndented = true

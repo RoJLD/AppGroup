@@ -1,4 +1,4 @@
-﻿using Microsoft.UI.Windowing;
+using Microsoft.UI.Windowing;
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -8,13 +8,12 @@ using System.Text;
 using Microsoft.UI;
 using Windows.UI.WindowManagement;
 using Microsoft.UI.Xaml;
+using AppGroup.Interop;
 
 namespace AppGroup {
     public class EditGroupHelper {
         private readonly string windowTitle;
         private readonly int groupId;
-        private readonly string groupIdFilePath;
-        private readonly string logFilePath;
 
         
 
@@ -25,12 +24,12 @@ namespace AppGroup {
         }
 
         public bool IsExist() {
-            IntPtr hWnd = NativeMethods.FindWindow(null, windowTitle);
+            IntPtr hWnd = NativeMethods.FindWindow(null!, windowTitle);
             return hWnd != IntPtr.Zero;
         }
 
         public void Activate() {
-            IntPtr hWnd = NativeMethods.FindWindow(null, windowTitle);
+            IntPtr hWnd = NativeMethods.FindWindow(null!, windowTitle);
             if (hWnd != IntPtr.Zero) {
                 // Write to file FIRST so EditGroupWindow_Activated reads correct id
                 SaveGroupIdToFile(groupId.ToString());

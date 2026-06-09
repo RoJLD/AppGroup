@@ -1,4 +1,3 @@
-﻿using IWshRuntimeLibrary;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -18,6 +17,10 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Threading;
+using AppGroup.Interop;
+using AppGroup.Models;
+using AppGroup.Services;
+using AppGroup.Utilities;
 using System.Threading.Tasks;
 using Windows.Graphics;
 using Windows.UI.ViewManagement;
@@ -27,9 +30,9 @@ using File = System.IO.File;
 
 namespace AppGroup {
     public class PathData {
-        public string Tooltip { get; set; }
-        public string Args { get; set; }
-        public string Icon { get; set; }
+        public string? Tooltip { get; set; }
+        public string? Args { get; set; }
+        public string? Icon { get; set; }
     }
 
     public class GroupData {
@@ -45,19 +48,19 @@ namespace AppGroup {
         public string Layout { get; set; } = "Default";
 
      public   bool ShowOnTray { get; set; } = false;
-        public Dictionary<string, PathData> Path { get; set; }
+        public Dictionary<string, PathData> Path { get; set; } = new Dictionary<string, PathData>();
     }
 
     public class PopupItem : INotifyPropertyChanged {
-        public string Path { get; set; }
-        public string Name { get; set; }
-        public string ToolTip { get; set; }
-        public string Args { get; set; }
-        public string IconPath { get; set; }
-        public string CustomIconPath { get; set; }
+        public string Path { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string ToolTip { get; set; } = "";
+        public string Args { get; set; } = "";
+        public string? IconPath { get; set; }
+        public string? CustomIconPath { get; set; }
 
-        private BitmapImage _icon;
-        public BitmapImage Icon {
+        private BitmapImage? _icon;
+        public BitmapImage? Icon {
             get => _icon;
             set {
                 if (_icon != value) {
@@ -66,10 +69,10 @@ namespace AppGroup {
                 }
             }
         }
-        public event PropertyChangedEventHandler PropertyChanged;
+        public event PropertyChangedEventHandler? PropertyChanged;
         public bool IsSubgroup { get; set; }
-        public string SubgroupName { get; set; }
-      
+        public string? SubgroupName { get; set; }
+
     }
 
     public sealed partial class PopupWindow : Window {
@@ -84,8 +87,6 @@ namespace AppGroup {
         private bool _hasBeenLoaded = false;
 
         private IntPtr _hwnd;
-        private IntPtr _oldWndProc;
-        private NativeMethods.WndProcDelegate _newWndProc;
 
         private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions {
             PropertyNameCaseInsensitive = true,
@@ -95,32 +96,32 @@ namespace AppGroup {
         private readonly Dictionary<int, EditGroupWindow> _openEditWindows = new Dictionary<int, EditGroupWindow>();
         private readonly WindowHelper _windowHelper;    
         private ObservableCollection<PopupItem> PopupItems = new ObservableCollection<PopupItem>();
-        private Dictionary<string, GroupData> _groups;
-        private GridView _gridView;
-        private PopupItem _clickedItem;
+        private Dictionary<string, GroupData>? _groups;
+        private GridView? _gridView;
+        private PopupItem? _clickedItem;
         private int _groupId;
-        internal string _groupFilter = null;
+        internal string? _groupFilter = null;
         private NativeMethods.POINT? _receivedCursorPos;
         private string _json = "";
         private bool _anyGroupDisplayed;
-        private DataTemplate _itemTemplate;
-        private DataTemplate _itemTemplateWithLabel;
-        private DataTemplate _itemTemplateHorizontalLabel;
-        private ItemsPanelTemplate _panelTemplate;
-        private ItemsPanelTemplate _panelTemplateWithLabel;
-        private ItemsPanelTemplate _panelTemplateHorizontalLabel;
+        private DataTemplate? _itemTemplate;
+        private DataTemplate? _itemTemplateWithLabel;
+        private DataTemplate? _itemTemplateHorizontalLabel;
+        private ItemsPanelTemplate? _panelTemplate;
+        private ItemsPanelTemplate? _panelTemplateWithLabel;
+        private ItemsPanelTemplate? _panelTemplateHorizontalLabel;
 
         private bool _showLabels = false;
         private int _labelSize = DEFAULT_LABEL_SIZE;
         private string _labelPosition = DEFAULT_LABEL_POSITION;
         private int _currentColumns = 1;
 
-        private string _originalIconPath;
-        private string _iconWithBackgroundPath;
-        private string iconGroup;
-        private static string _cachedAppFolderPath;
-        private static string _cachedLastOpenPath;
-        private UISettings _uiSettings;
+        private string? _originalIconPath;
+        private string? _iconWithBackgroundPath;
+        private string? iconGroup;
+        private static string? _cachedAppFolderPath;
+        private static string? _cachedLastOpenPath;
+        private UISettings? _uiSettings;
         private bool _isUISettingsSubscribed = false;
 
         
@@ -128,12 +129,12 @@ namespace AppGroup {
         private readonly List<Task> _backgroundTasks = new List<Task>();
 
         private bool useFileMode = false;
-        private NativeMethods.SubclassProc _subclassProc;
+        private NativeMethods.SubclassProc? _subclassProc;
         private const int SUBCLASS_ID = 1;
         private readonly Dictionary<string, PopupWindow> _openSubPopups = new Dictionary<string, PopupWindow>();
-        private PopupWindow _parentPopup = null;
-        private Storyboard _entranceStoryboard;
-        private bool _entranceStarted = false;  
+        private PopupWindow? _parentPopup = null;
+        private Storyboard? _entranceStoryboard;
+        private bool _entranceStarted = false;
         private bool _wasLaunchedFromTaskbar = false;
 
         private int _isLoadingConfig = 0;
@@ -141,19 +142,19 @@ namespace AppGroup {
         private bool _isClosing = false;
         private readonly CancellationTokenSource _windowCts = new CancellationTokenSource();
         private static readonly SemaphoreSlim _iconLoadSemaphore = new SemaphoreSlim(6, 6);
-        private static BitmapImage _placeholderIcon;
+        private static BitmapImage? _placeholderIcon;
 
         private static NativeMethods.POINT _lastClickPos;
         private static IntPtr _mouseHookHandle;
-        private static NativeMethods.LowLevelMouseProc _mouseHookProc;
-        public PopupWindow(string groupFilter = null) {
+        private static NativeMethods.LowLevelMouseProc? _mouseHookProc;
+        public PopupWindow(string? groupFilter = null) {
             InitializeComponent();
 
             _mouseHookProc = MouseHookCallback;
             _mouseHookHandle = NativeMethods.SetWindowsHookEx(
                 NativeMethods.WH_MOUSE_LL,
                 _mouseHookProc,
-                NativeMethods.GetModuleHandle(null),
+                NativeMethods.GetModuleHandle(null!),
                 0);
             _groupFilter = groupFilter;
             this.Title = "Popup Window";
@@ -199,9 +200,7 @@ namespace AppGroup {
                     string path = pathEntry.Key;
                     if (path.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase)) {
                         try {
-                            IWshShell shell = new WshShell();
-                            IWshShortcut shortcut = (IWshShortcut)shell.CreateShortcut(path);
-                            string comment = shortcut.Description;
+                            string? comment = ShortcutHelper.GetShortcutDescription(path);
                             if (!string.IsNullOrEmpty(comment) &&
                                 comment.EndsWith("- AppGroup Shortcut", StringComparison.OrdinalIgnoreCase)) {
                                 string subgroupName = comment.Replace("- AppGroup Shortcut", "").Trim();
@@ -235,9 +234,9 @@ namespace AppGroup {
         }
         internal async Task PreloadLastGroupAsync() {
             try {
-                string configPath = JsonConfigHelper.GetDefaultConfigPath();
+                string configPath = ConfigService.GetDefaultConfigPath();
                 _groups = await Task.Run(() => {
-                    string json = JsonConfigHelper.ReadJsonFromFile(configPath);
+                    string json = File.ReadAllText(configPath);
                     return JsonSerializer.Deserialize<Dictionary<string, GroupData>>(json, JsonOptions);
                 });
                 if (_groups == null || string.IsNullOrEmpty(_groupFilter)) return;
@@ -271,7 +270,7 @@ namespace AppGroup {
             return new SizeInt32(workArea.Width * 2, workArea.Height * 2);
         }
 
-        private void AnimateWindowSlideUp(IntPtr hWnd, bool isSubPopup = false, Action onComplete = null, NativeMethods.POINT? cursorOverride = null) {
+        private void AnimateWindowSlideUp(IntPtr hWnd, bool isSubPopup = false, Action? onComplete = null, NativeMethods.POINT? cursorOverride = null) {
             NativeMethods.GetWindowRect(hWnd, out NativeMethods.RECT rect);
             int finalX = rect.left;
             int finalY = rect.top;
@@ -424,7 +423,7 @@ namespace AppGroup {
             int currentStep = 0;
             var cts = _windowCts;
 
-            System.Threading.Timer timer = null;
+            System.Threading.Timer? timer = null;
             timer = new System.Threading.Timer(_ => {
                 if (cts.IsCancellationRequested) { onComplete?.Invoke(); timer?.Dispose(); return; }
                 currentStep++;
@@ -485,10 +484,10 @@ namespace AppGroup {
         private IntPtr SubclassProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam, IntPtr uIdSubclass, IntPtr dwRefData) {
             if (msg == NativeMethods.WM_COPYDATA) {
                 try {
-                    NativeMethods.COPYDATASTRUCT cds = (NativeMethods.COPYDATASTRUCT)Marshal.PtrToStructure(
-                        lParam, typeof(NativeMethods.COPYDATASTRUCT));
+                    NativeMethods.COPYDATASTRUCT cds = Marshal.PtrToStructure<NativeMethods.COPYDATASTRUCT>(lParam);
                     if (cds.dwData == (IntPtr)100) {
-                        string raw = Marshal.PtrToStringUni(cds.lpData);
+                        string? raw = Marshal.PtrToStringUni(cds.lpData);
+                        if (raw == null) return NativeMethods.DefSubclassProc(hWnd, msg, wParam, lParam);
                         string groupName = raw;
                         NativeMethods.POINT? parsedClickPos = null;
 
@@ -515,13 +514,13 @@ namespace AppGroup {
             return NativeMethods.DefSubclassProc(hWnd, msg, wParam, lParam);
         }
 
-        private void UpdateMainGridBackground(UISettings uiSettings) {
+        private void UpdateMainGridBackground(UISettings? uiSettings) {
             var settings = SettingsHelper.GetCurrentSettings();
             string popupTheme = settings?.PopupTheme ?? "WindowsMode";
 
             // Accent color only applies to WindowsMode (it's a Windows/taskbar-level setting)
             if (popupTheme == "WindowsMode"
-       && settings.PopupAccentBackground
+       && settings?.PopupAccentBackground == true
        && IsAccentColorOnStartTaskbarEnabled()) {
                 if (Content is FrameworkElement rootElement)
                     rootElement.RequestedTheme = ElementTheme.Dark;
@@ -555,7 +554,7 @@ namespace AppGroup {
             using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
                 @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
             if (key != null) {
-                object value = key.GetValue("SystemUsesLightTheme");
+                object? value = key.GetValue("SystemUsesLightTheme");
                 bool isLight = value != null && (int)value == 1;
                 return isLight ? ElementTheme.Light : ElementTheme.Dark;
             }
@@ -567,7 +566,7 @@ namespace AppGroup {
             using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
                 @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
             if (key != null) {
-                object value = key.GetValue("AppsUseLightTheme");
+                object? value = key.GetValue("AppsUseLightTheme");
                 bool isLight = value != null && (int)value == 1;
                 return isLight ? ElementTheme.Light : ElementTheme.Dark;
             }
@@ -578,7 +577,7 @@ namespace AppGroup {
             using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
                 @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
             if (key != null) {
-                object value = key.GetValue("ColorPrevalence");
+                object? value = key.GetValue("ColorPrevalence");
                 if (value != null && (int)value == 1) return true;
             }
             return false;
@@ -663,16 +662,16 @@ namespace AppGroup {
           
             if (Interlocked.CompareExchange(ref _isLoadingConfig, 1, 0) != 0) return;
             try {
-                string configPath = JsonConfigHelper.GetDefaultConfigPath();
+                string configPath = ConfigService.GetDefaultConfigPath();
                 
                 _groups = await Task.Run(() => {
-                    string json = JsonConfigHelper.ReadJsonFromFile(configPath);
+                    string json = File.ReadAllText(configPath);
                     return JsonSerializer.Deserialize<Dictionary<string, GroupData>>(json, JsonOptions);
                 });
                 _lastConfigLoad = File.GetLastWriteTime(configPath);
 
                 if (_groups != null) {
-                    InitializeWindow();
+                    await InitializeWindow();
                     await CreateDynamicContent();
 
                     if (!string.IsNullOrEmpty(_groupFilter)) {
@@ -697,6 +696,7 @@ namespace AppGroup {
         }
 
         private async Task CreateDynamicContent() {
+            if (_groups == null) return;
             UnsubscribeGridViewHandlers();
             PopupItems.Clear();
             GridPanel.Children.Clear();
@@ -723,8 +723,8 @@ namespace AppGroup {
                 }
 
                 bool useHorizontalLabels = _showLabels && _labelPosition == "Right";
-                DataTemplate selectedItemTemplate;
-                ItemsPanelTemplate selectedPanelTemplate;
+                DataTemplate? selectedItemTemplate;
+                ItemsPanelTemplate? selectedPanelTemplate;
 
                 if (useHorizontalLabels) {
                     selectedItemTemplate = _itemTemplateHorizontalLabel;
@@ -787,6 +787,7 @@ namespace AppGroup {
         }
 
         private async Task InitializeWindow() {
+            if (_groups == null) return;
             int maxPathItems = 1;
             int maxColumns = 1;
             bool groupHeader = false;
@@ -1038,11 +1039,11 @@ namespace AppGroup {
             }
         }
 
-        private string _currentGridIconPath;
+        private string? _currentGridIconPath;
 
         private async Task CreateGridIconFromReorder() {
             try {
-                if (PopupItems == null || !PopupItems.Any()) return;
+                if (_groups == null || string.IsNullOrEmpty(_groupFilter) || PopupItems == null || !PopupItems.Any()) return;
 
                 var filteredGroup = _groups.FirstOrDefault(g =>
                     g.Value.GroupName.Equals(_groupFilter, StringComparison.OrdinalIgnoreCase));
@@ -1076,6 +1077,7 @@ namespace AppGroup {
 
         private async Task UpdateShortcutAndConfig(string newIconPath, int gridSize) {
             try {
+                if (string.IsNullOrEmpty(_groupFilter)) return;
                 string localAppDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
                 string groupsFolder = Path.Combine(localAppDataPath, "AppGroup", "Groups");
                 string groupFolder = Path.Combine(groupsFolder, _groupFilter);
@@ -1083,10 +1085,7 @@ namespace AppGroup {
 
                 string shortcutPath = Path.Combine(groupFolder, $"{_groupFilter}.lnk");
                 if (File.Exists(shortcutPath)) {
-                    IWshShell wshShell = new WshShell();
-                    IWshShortcut shortcut = (IWshShortcut)wshShell.CreateShortcut(shortcutPath);
-                    shortcut.IconLocation = newIconPath;
-                    shortcut.Save();
+                    ShortcutHelper.UpdateShortcut(shortcutPath, iconPath: newIconPath);
                 }
 
                 await UpdateJsonConfiguration(newIconPath, gridSize);
@@ -1155,6 +1154,7 @@ namespace AppGroup {
 
         private async Task UpdateJsonConfiguration(string newIconPath, int gridSize) {
             try {
+                if (_groups == null) return;
                 var filteredGroup = _groups.FirstOrDefault(g =>
                     g.Value.GroupName.Equals(_groupFilter, StringComparison.OrdinalIgnoreCase));
                 if (filteredGroup.Key == null) return;
@@ -1165,20 +1165,41 @@ namespace AppGroup {
                         item => item.Path,
                         item => (item.ToolTip, item.Args, item.CustomIconPath ?? ""));
 
-                JsonConfigHelper.AddGroupToJson(
-                    JsonConfigHelper.GetDefaultConfigPath(),
-                    groupId, filteredGroup.Value.GroupName, filteredGroup.Value.GroupHeader,
-                    newIconPath, filteredGroup.Value.GroupCol,
-                    filteredGroup.Value.ShowLabels,
-                    filteredGroup.Value.LabelSize > 0 ? filteredGroup.Value.LabelSize : DEFAULT_LABEL_SIZE,
-                    filteredGroup.Value.LabelPosition ?? DEFAULT_LABEL_POSITION,
-                    filteredGroup.Value.HeaderPosition ?? "Top",
-                    filteredGroup.Value.Layout ?? "Default",
-                    filteredGroup.Value.ShowOnTray,
-                    reorderedPaths);
+                // Convert GroupData to GroupConfig and add via ConfigService
+                var groupConfig = new GroupConfig(groupId, filteredGroup.Value.GroupName)
+                {
+                    ShowHeader = filteredGroup.Value.GroupHeader,
+                    IconPath = newIconPath,
+                    ColumnCount = filteredGroup.Value.GroupCol,
+                    ShowLabels = filteredGroup.Value.ShowLabels,
+                    LabelSize = filteredGroup.Value.LabelSize > 0 ? filteredGroup.Value.LabelSize : DEFAULT_LABEL_SIZE,
+                    LabelPosition = filteredGroup.Value.LabelPosition ?? DEFAULT_LABEL_POSITION,
+                    HeaderPosition = filteredGroup.Value.HeaderPosition ?? "Top",
+                    Layout = filteredGroup.Value.Layout ?? "Default",
+                    ShowOnTray = filteredGroup.Value.ShowOnTray
+                };
+                
+                // Add items
+                foreach (var pathEntry in reorderedPaths)
+                {
+                    groupConfig.Items[pathEntry.Key] = new AppItemConfig
+                    {
+                        Path = pathEntry.Key,
+                        Tooltip = pathEntry.Value.tooltip,
+                        Arguments = pathEntry.Value.args,
+                        Icon = pathEntry.Value.icon
+                    };
+                }
+                
+                ConfigService.AddGroup(groupConfig);
 
-                string configPath = JsonConfigHelper.GetDefaultConfigPath();
-                _json = JsonConfigHelper.ReadJsonFromFile(configPath);
+                // Reload groups using new ConfigService
+                var config = ConfigService.LoadConfig();
+                // Note: This changes the data structure from GroupData to GroupConfig
+                // Full migration would require updating all GroupData usage in this class
+                // For now, we'll keep the old deserialization for backward compatibility
+                string configPath = ConfigService.GetDefaultConfigPath();
+                _json = File.ReadAllText(configPath);
                 _groups = JsonSerializer.Deserialize<Dictionary<string, GroupData>>(_json, JsonOptions);
             }
             catch (Exception ex) {
@@ -1206,20 +1227,36 @@ namespace AppGroup {
                     await CreateGridIconFromReorder();
                 }
                 else {
-                    JsonConfigHelper.AddGroupToJson(
-                        JsonConfigHelper.GetDefaultConfigPath(),
-                        groupId, filteredGroup.Value.GroupName, filteredGroup.Value.GroupHeader,
-                        filteredGroup.Value.GroupIcon, filteredGroup.Value.GroupCol,
-                        filteredGroup.Value.ShowLabels,
-                        filteredGroup.Value.LabelSize > 0 ? filteredGroup.Value.LabelSize : DEFAULT_LABEL_SIZE,
-                        filteredGroup.Value.LabelPosition ?? DEFAULT_LABEL_POSITION,
-                        filteredGroup.Value.HeaderPosition ?? "Top",
-                        filteredGroup.Value.Layout ?? "Default",
-                          filteredGroup.Value.ShowOnTray,
-                        newPathOrder);
+                    // Convert GroupData to GroupConfig and add via ConfigService
+                    var groupConfig = new GroupConfig(groupId, filteredGroup.Value.GroupName)
+                    {
+                        ShowHeader = filteredGroup.Value.GroupHeader,
+                        IconPath = filteredGroup.Value.GroupIcon,
+                        ColumnCount = filteredGroup.Value.GroupCol,
+                        ShowLabels = filteredGroup.Value.ShowLabels,
+                        LabelSize = filteredGroup.Value.LabelSize > 0 ? filteredGroup.Value.LabelSize : DEFAULT_LABEL_SIZE,
+                        LabelPosition = filteredGroup.Value.LabelPosition ?? DEFAULT_LABEL_POSITION,
+                        HeaderPosition = filteredGroup.Value.HeaderPosition ?? "Top",
+                        Layout = filteredGroup.Value.Layout ?? "Default",
+                        ShowOnTray = filteredGroup.Value.ShowOnTray
+                    };
+                    
+                    // Add items
+                    foreach (var pathEntry in newPathOrder)
+                    {
+                        groupConfig.Items[pathEntry.Key] = new AppItemConfig
+                        {
+                            Path = pathEntry.Key,
+                            Tooltip = pathEntry.Value.tooltip,
+                            Arguments = pathEntry.Value.args,
+                            Icon = pathEntry.Value.icon
+                        };
+                    }
+                    
+                    ConfigService.AddGroup(groupConfig);
                 }
 
-                _json = File.ReadAllText(JsonConfigHelper.GetDefaultConfigPath());
+                _json = File.ReadAllText(ConfigService.GetDefaultConfigPath());
             }
             catch (Exception ex) {
                 Debug.WriteLine($"Error in GridView_DragItemsCompleted: {ex.Message}");
@@ -1246,7 +1283,7 @@ namespace AppGroup {
                     PathData properties = pathEntry.Value;
                     string tooltip = !string.IsNullOrEmpty(properties.Tooltip)
                         ? properties.Tooltip : GetDisplayNameBackground(path);
-                    string customIconPath = !string.IsNullOrEmpty(properties.Icon) ? properties.Icon : null;
+                    string? customIconPath = !string.IsNullOrEmpty(properties.Icon) ? properties.Icon : null;
 
                     var popupItem = new PopupItem {
                         Path = path,
@@ -1260,9 +1297,7 @@ namespace AppGroup {
 
                     if (path.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase)) {
                         try {
-                            IWshShell shell = new WshShell();
-                            IWshShortcut shortcut = (IWshShortcut)shell.CreateShortcut(path);
-                            string comment = shortcut.Description;
+                            string? comment = ShortcutHelper.GetShortcutDescription(path);
                             if (!string.IsNullOrEmpty(comment) &&
                                 comment.EndsWith("- AppGroup Shortcut", StringComparison.OrdinalIgnoreCase)) {
                                 popupItem.IsSubgroup = true;
@@ -1341,8 +1376,8 @@ namespace AppGroup {
                 if (token.IsCancellationRequested) return;
 
                 // Resolve icon file path (background thread work)
-                string iconPath;
-                string customIcon = string.IsNullOrWhiteSpace(item.CustomIconPath) ? null : item.CustomIconPath;
+                string? iconPath;
+                string? customIcon = string.IsNullOrWhiteSpace(item.CustomIconPath) ? null : item.CustomIconPath;
                 if (customIcon != null && File.Exists(customIcon)) {
                     iconPath = customIcon;
                 }
@@ -1394,7 +1429,7 @@ namespace AppGroup {
         }
        
 
-        private System.Threading.Timer _focusTimer = null;
+        private System.Threading.Timer? _focusTimer = null;
         private DateTime _lastSubPopupOpenTime = DateTime.MinValue;
 
         //private void OpenSubPopup(string groupName) {
@@ -1523,7 +1558,7 @@ namespace AppGroup {
             old?.Dispose();
 
             var windowCts = _windowCts; // capture so callback doesn't touch disposed object
-            System.Threading.Timer newTimer = null;
+            System.Threading.Timer? newTimer = null;
             newTimer = new System.Threading.Timer(_ => {
                 if (windowCts.IsCancellationRequested) { newTimer?.Dispose(); return; }
                 if ((DateTime.Now - _lastSubPopupOpenTime).TotalMilliseconds < 400) return;
@@ -1589,7 +1624,7 @@ namespace AppGroup {
         }
         private void GridView_ItemClick(object sender, ItemClickEventArgs e) {
             if (e.ClickedItem is PopupItem popupItem) {
-                if (popupItem.IsSubgroup) {
+                if (popupItem.IsSubgroup && popupItem.SubgroupName != null) {
                     OpenSubPopup(popupItem.SubgroupName);
                 }
               
@@ -1630,7 +1665,7 @@ namespace AppGroup {
       
         private void GridView_RightTapped(object sender, RightTappedRoutedEventArgs e) {
             var item = (e.OriginalSource as FrameworkElement)?.DataContext as PopupItem;
-            if (item != null) {
+            if (item != null && _gridView != null) {
                 MenuFlyout flyout = CreateItemFlyout();
                 flyout.ShowAt(_gridView, e.GetPosition(_gridView));
                 _clickedItem = item;
@@ -1710,7 +1745,8 @@ namespace AppGroup {
                     if (settings.UseGrayscaleIcon) {
                         var task = Task.Run(async () => {
                             try {
-                                await TaskbarManager.UpdateTaskbarShortcutIcon(_groupFilter, iconGroup);
+                                if (!string.IsNullOrEmpty(_groupFilter) && !string.IsNullOrEmpty(iconGroup))
+                                    await TaskbarManager.UpdateTaskbarShortcutIcon(_groupFilter, iconGroup);
                                 if (!string.IsNullOrEmpty(_iconWithBackgroundPath)) {
                                     IconHelper.RemoveBackgroundIcon(_iconWithBackgroundPath);
                                     _iconWithBackgroundPath = null;
@@ -1787,7 +1823,8 @@ namespace AppGroup {
             }
         }
 
-        private async Task UpdateTaskbarIcon(string groupName) {
+        private async Task UpdateTaskbarIcon(string? groupName) {
+            if (string.IsNullOrEmpty(groupName) || string.IsNullOrEmpty(iconGroup)) return;
             var settings = await SettingsHelper.LoadSettingsAsync();
             try {
                 string groupIcon = IconHelper.FindOrigIcon(iconGroup);
@@ -1821,9 +1858,10 @@ namespace AppGroup {
 
         private void TryRunAsAdmin(string path, string args) {
             try {
-                Type shellType = Type.GetTypeFromProgID("Shell.Application");
+                Type? shellType = Type.GetTypeFromProgID("Shell.Application");
                 if (shellType == null) throw new InvalidOperationException("Shell.Application COM object not found.");
-                dynamic shell = Activator.CreateInstance(shellType);
+                dynamic? shell = Activator.CreateInstance(shellType);
+                if (shell == null) throw new InvalidOperationException("Failed to create Shell.Application instance.");
                 shell.ShellExecute(path, args, "", "runas", 1);
             }
             catch (Exception ex) {
@@ -1834,7 +1872,7 @@ namespace AppGroup {
 
         private void OpenFileLocation(string path) {
             try {
-                string directory = Path.GetDirectoryName(path);
+                string? directory = Path.GetDirectoryName(path);
                 if (Directory.Exists(directory))
                     System.Diagnostics.Process.Start("explorer.exe", directory);
                 else
@@ -1884,7 +1922,7 @@ namespace AppGroup {
                 var matchingGroup = _groups?.Values.FirstOrDefault(g =>
                     g.GroupName.Equals(_groupFilter, StringComparison.OrdinalIgnoreCase));
                 if (matchingGroup != null)
-                    await JsonConfigHelper.LaunchAll(matchingGroup.GroupName);
+                    await ConfigService.LaunchAll(matchingGroup.GroupName);
             }
         }
 
@@ -1933,3 +1971,5 @@ namespace AppGroup {
         }
     }
 }
+
+

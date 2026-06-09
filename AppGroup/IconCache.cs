@@ -80,7 +80,7 @@ namespace AppGroup {
         /// Returns a cached PNG path for a folder, extracting the shell folder icon if needed.
         /// Separate from GetIconPathAsync because directories fail File.Exists checks.
         /// </summary>
-        public static async Task<string> GetFolderIconPathAsync(string folderPath) {
+        public static async Task<string?> GetFolderIconPathAsync(string folderPath) {
             if (string.IsNullOrEmpty(folderPath) || !Directory.Exists(folderPath)) return null;
 
             // Build a stable cache key from path + last-write time
@@ -136,7 +136,7 @@ namespace AppGroup {
         /// Returns the cached PNG path for a source file, extracting it first if needed.
         /// Re-extracts only when the cached PNG no longer exists on disk.
         /// </summary>
-        public static async Task<string> GetIconPathAsync(string filePath) {
+        public static async Task<string?> GetIconPathAsync(string filePath) {
             if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return null;
 
             string cacheKey = ComputeFileCacheKey(filePath);
@@ -227,7 +227,7 @@ namespace AppGroup {
         /// Returns true and sets iconPath when a valid on-disk entry exists.
         /// Takes filePath (not a raw key) so callers don't need to call ComputeFileCacheKey.
         /// </summary>
-        public static bool TryGetCachedPath(string filePath, out string iconPath) {
+        public static bool TryGetCachedPath(string filePath, out string? iconPath) {
             iconPath = null;
             if (string.IsNullOrEmpty(filePath)) return false;
             string cacheKey = ComputeFileCacheKey(filePath);
@@ -258,7 +258,7 @@ namespace AppGroup {
             }
         }
 
-        public static async Task<BitmapImage> LoadImageFromPathAsync(string filePath) {
+        public static async Task<BitmapImage?> LoadImageFromPathAsync(string filePath) {
             if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return null;
             try {
                 var bitmapImage = new BitmapImage();

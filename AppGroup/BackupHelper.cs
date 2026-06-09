@@ -1,4 +1,3 @@
-﻿using IWshRuntimeLibrary;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -13,6 +12,8 @@ using Windows.Storage;
 using Windows.Storage.Pickers;
 using WinRT.Interop;
 using WinUIEx;
+using AppGroup.Services;
+using AppGroup.Utilities;
 using File = System.IO.File;
 
 namespace AppGroup {
@@ -132,7 +133,7 @@ namespace AppGroup {
                 string iconsPath = Path.Combine(appGroupLocalPath, "Icons");
 
                 // Temporary variables to store configuration and path validation
-                Dictionary<string, GroupConfig> config = null;
+                Dictionary<string, GroupConfig>? config = null;
                 var groupsWithInvalidPaths = new Dictionary<string, List<string>>();
 
                 // First, examine the zip file contents without extracting
@@ -229,21 +230,23 @@ namespace AppGroup {
       .Where(g => !string.IsNullOrEmpty(g.groupName))
     .Select(g => {
         // Try to resolve icon from the zip (Groups/<name>/<name>/<name>_regular.png or .ico)
-          string iconEntry = archive.Entries
+          string? iconEntry = archive.Entries
         .FirstOrDefault(e =>
             e.FullName.StartsWith($"Groups/{g.groupName}/{g.groupName}/", StringComparison.OrdinalIgnoreCase)
             && (e.Name.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
              ))
         ?.FullName;
 
-    string tempIconPath = null;
+    string? tempIconPath = null;
     if (iconEntry != null) {
         try {
             var entry = archive.GetEntry(iconEntry);
-            string ext = Path.GetExtension(entry.Name);
-            tempIconPath = Path.Combine(Path.GetTempPath(),
-                $"agbk_preview_{g.groupName.GetHashCode():x}{ext}");
-            entry.ExtractToFile(tempIconPath, overwrite: true);
+            if (entry != null) {
+                string ext = Path.GetExtension(entry.Name);
+                tempIconPath = Path.Combine(Path.GetTempPath(),
+                    $"agbk_preview_{g.groupName.GetHashCode():x}{ext}");
+                entry.ExtractToFile(tempIconPath, overwrite: true);
+            }
         }
         catch { tempIconPath = null; }
     }
@@ -274,7 +277,7 @@ namespace AppGroup {
             else {
                 // fall back to live icon cache for paths that exist on this machine
                 try {
-                    string cached = IconCache.GetIconPathAsync(pathKey).GetAwaiter().GetResult();
+                    string? cached = IconCache.GetIconPathAsync(pathKey).GetAwaiter().GetResult();
                     if (!string.IsNullOrEmpty(cached) && File.Exists(cached))
                         pathIcons.Add(cached);
                 }
@@ -288,7 +291,7 @@ namespace AppGroup {
     return new BackupGroupPreviewItem {
         GroupName = g.groupName,
         ShortcutCount = g.path?.Count ?? 0,
-        GroupIcon = tempIconPath,
+        GroupIcon = tempIconPath ?? string.Empty,
         PathIcons = pathIcons.Take(maxIcons).ToList(),                     // ADD
         AdditionalIconsCount = Math.Max(0, (g.path?.Count ?? 0) - maxIcons) // ADD
     };
@@ -511,7 +514,10 @@ namespace AppGroup {
                                 destinationPath = Path.Combine(appDataPath, entry.FullName);
 
                                 // Ensure directory exists for this entry
-                                Directory.CreateDirectory(Path.GetDirectoryName(destinationPath));
+                                string? entryDir = Path.GetDirectoryName(destinationPath);
+                                if (!string.IsNullOrEmpty(entryDir)) {
+                                    Directory.CreateDirectory(entryDir);
+                                }
                             }
                             else if (entry.FullName.StartsWith("Icons/")) {
                                 // Icons files go to the icons directory
@@ -530,7 +536,7 @@ namespace AppGroup {
                             }
 
                             // Ensure parent directory exists for the file
-                            string parentDir = Path.GetDirectoryName(destinationPath);
+                            string? parentDir = Path.GetDirectoryName(destinationPath);
                             if (!string.IsNullOrEmpty(parentDir)) {
                                 Directory.CreateDirectory(parentDir);
                             }
@@ -661,7 +667,7 @@ namespace AppGroup {
 
                     try {
                         if (_parentWindow is MainWindow mainWindow) {
-                            await mainWindow.UpdateGroupItemAsync(JsonConfigHelper.GetDefaultConfigPath());
+                            await mainWindow.UpdateGroupItemAsync(ConfigService.GetDefaultConfigPath());
                             await mainWindow.LoadGroupsAsync();
                             Debug.WriteLine("Groups reloaded after import");
                         }
@@ -769,21 +775,15 @@ namespace AppGroup {
                     File.Delete(shortcutPath);
                 }
 
-                // Create a new shortcut using the IWshShortcut COM object
-                dynamic wshShell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell"));
-                dynamic shortcut = wshShell.CreateShortcut(shortcutPath);
-
-                // Set the properties of the shortcut
-                shortcut.TargetPath = Path.Combine(baseDir, "AppGroup.exe");
-                shortcut.Arguments = $"\"{groupName}\"";
-                shortcut.Description = $"{groupName} - AppGroup Shortcut";
-                shortcut.IconLocation = iconPath;
-
-                // Set working directory to the base directory
-                shortcut.WorkingDirectory = baseDir;
-
-                // Save the shortcut
-                shortcut.Save();
+                // Create a new shortcut using P/Invoke
+                ShortcutHelper.CreateShortcut(
+                    shortcutPath,
+                    Path.Combine(baseDir, "AppGroup.exe"),
+                    arguments: $"\"{groupName}\"",
+                    description: $"{groupName} - AppGroup Shortcut",
+                    workingDirectory: baseDir,
+                    iconPath: iconPath
+                );
 
                 Debug.WriteLine($"Shortcut created successfully at {shortcutPath}");
             }
@@ -820,16 +820,16 @@ namespace AppGroup {
 
         // Helper class to deserialize configuration
         public class GroupConfig {
-            public string groupName { get; set; }
+            public string groupName { get; set; } = string.Empty;
             public bool groupHeader { get; set; }
             public int groupCol { get; set; }
-            public string groupIcon { get; set; }
-            public Dictionary<string, PathConfig> path { get; set; }
+            public string groupIcon { get; set; } = string.Empty;
+            public Dictionary<string, PathConfig> path { get; set; } = new Dictionary<string, PathConfig>();
         }
 
         public class PathConfig {
-            public string tooltip { get; set; }
-            public string args { get; set; }
+            public string tooltip { get; set; } = string.Empty;
+            public string args { get; set; } = string.Empty;
         }
     }
 }

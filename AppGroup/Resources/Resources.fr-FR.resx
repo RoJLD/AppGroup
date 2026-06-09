@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!--
+    Microsoft ResX Schema
+    
+    Version 2.0
+    
+    The primary goals of this format is to allow a simple XML format
+    that is mostly human readable. The generation and reading of this
+    format is done through the ResXResourceReader and ResXResourceWriter
+    classes.
+  -->
+  <xsd:schema id="root" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <xsd:element name="root" type="ResXFileType">
+      <xsd:complexType name="ResXFileType">
+        <xsd:sequence>
+          <xsd:element name="data" type="ResXDataType" minOccurs="0" maxOccurs="unbounded" />
+          <xsd:element name="metadata" type="ResXMetadataType" minOccurs="0" maxOccurs="1" />
+        </xsd:sequence>
+      </xsd:complexType>
+      <xsd:complexType name="ResXDataType">
+        <xsd:sequence>
+          <xsd:element name="value" type="xsd:string" minOccurs="0" />
+          <xsd:element name="comment" type="xsd:string" minOccurs="0" />
+        </xsd:sequence>
+        <xsd:attribute name="name" use="required" />
+        <xsd:attribute name="type" use="required" />
+        <xsd:attribute name="mimetype" use="optional" />
+        <xsd:attribute name="space" use="optional" />
+      </xsd:complexType>
+      <xsd:complexType name="ResXMetadataType">
+        <xsd:sequence>
+          <xsd:element name="schema" type="xsd:string" minOccurs="0" />
+          <xsd:element name="version" type="xsd:string" minOccurs="0" />
+        </xsd:sequence>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="AppName" xml:space="preserve">
+    <value>AppGroup</value>
+  </data>
+  <data name="AppDescription" xml:space="preserve">
+    <value>Regroupez vos applications dans des lanceurs personnalisables</value>
+  </data>
+  
+  <!-- MainWindow -->
+  <data name="MainWindow_Title" xml:space="preserve">
+    <value>AppGroup</value>
+  </data>
+  
+  <!-- Dialog Buttons -->
+  <data name="Button_OK" xml:space="preserve">
+    <value>OK</value>
+  </data>
+  <data name="Button_Cancel" xml:space="preserve">
+    <value>Annuler</value>
+  </data>
+  <data name="Button_Save" xml:space="preserve">
+    <value>Enregistrer</value>
+  </data>
+  <data name="Button_Apply" xml:space="preserve">
+    <value>Appliquer</value>
+  </data>
+  <data name="Button_Create" xml:space="preserve">
+    <value>Créer</value>
+  </data>
+  <data name="Button_Delete" xml:space="preserve">
+    <value>Supprimer</value>
+  </data>
+  <data name="Button_Edit" xml:space="preserve">
+    <value>Modifier</value>
+  </data>
+  <data name="Button_Yes" xml:space="preserve">
+    <value>Oui</value>
+  </data>
+  <data name="Button_No" xml:space="preserve">
+    <value>Non</value>
+  </data>
+  
+  <!-- EditGroupWindow -->
+  <data name="EditGroup_GroupNamePlaceholder" xml:space="preserve">
+    <value>Groupe d'applications...</value>
+  </data>
+  <data name="EditGroup_TooltipPlaceholder" xml:space="preserve">
+    <value>Saisir un titre</value>
+  </data>
+  <data name="EditGroup_ArgsPlaceholder" xml:space="preserve">
+    <value>Saisir les arguments</value>
+  </data>
+  <data name="EditGroup_Reset" xml:space="preserve">
+    <value>Réinitialiser</value>
+  </data>
+  
+  <!-- Settings Labels -->
+  <data name="Settings_Columns" xml:space="preserve">
+    <value>Colonnes</value>
+  </data>
+  <data name="Settings_ColumnsDescription" xml:space="preserve">
+    <value>Nombre de colonnes dans la grille.</value>
+  </data>
+  <data name="Settings_Layout" xml:space="preserve">
+    <value>Disposition</value>
+  </data>
+  <data name="Settings_LayoutDescription" xml:space="preserve">
+    <value>Style d'arrière-plan de la zone de contenu</value>
+  </data>
+  <data name="Settings_Header" xml:space="preserve">
+    <value>En-tête</value>
+  </data>
+  <data name="Settings_ShowGroupHeader" xml:space="preserve">
+    <value>Afficher l'en-tête du groupe</value>
+  </data>
+  <data name="Settings_Labels" xml:space="preserve">
+    <value>Étiquettes</value>
+  </data>
+  <data name="Settings_ShowLabels" xml:space="preserve">
+    <value>Afficher ou masquer les étiquettes des programmes</value>
+  </data>
+  <data name="Settings_ShowOnTray" xml:space="preserve">
+    <value>Afficher dans la barre</value>
+  </data>
+  <data name="Settings_ShowOnTrayDescription" xml:space="preserve">
+    <value>Afficher l'icône du groupe dans la barre des tâches</value>
+  </data>
+  
+  <!-- Layout Options -->
+  <data name="Layout_Default" xml:space="preserve">
+    <value>Par défaut</value>
+  </data>
+  <data name="Layout_Card" xml:space="preserve">
+    <value>Carte</value>
+  </data>
+  
+  <!-- Header Position -->
+  <data name="HeaderPosition_Top" xml:space="preserve">
+    <value>Haut</value>
+  </data>
+  <data name="HeaderPosition_Bottom" xml:space="preserve">
+    <value>Bas</value>
+  </data>
+  
+  <!-- Label Position -->
+  <data name="LabelPosition_Top" xml:space="preserve">
+    <value>Haut</value>
+  </data>
+  <data name="LabelPosition_Bottom" xml:space="preserve">
+    <value>Bas</value>
+  </data>
+  <data name="LabelPosition_Left" xml:space="preserve">
+    <value>Gauche</value>
+  </data>
+  <data name="LabelPosition_Right" xml:space="preserve">
+    <value>Droite</value>
+  </data>
+  
+  <!-- Messages -->
+  <data name="Message_GroupCreated" xml:space="preserve">
+    <value>Groupe créé avec succès !</value>
+  </data>
+  <data name="Message_GroupUpdated" xml:space="preserve">
+    <value>Groupe mis à jour avec succès !</value>
+  </data>
+  <data name="Message_GroupDeleted" xml:space="preserve">
+    <value>Groupe supprimé avec succès !</value>
+  </data>
+  <data name="Message_DeleteConfirm" xml:space="preserve">
+    <value>Êtes-vous sûr de vouloir supprimer ce groupe ?</value>
+  </data>
+  <data name="Message_Error" xml:space="preserve">
+    <value>Une erreur est survenue : {0}</value>
+  </data>
+  <data name="Message_SelectAll" xml:space="preserve">
+    <value>Tout sélectionner</value>
+  </data>
+  
+  <!-- Backup Import -->
+  <data name="BackupImport_Title" xml:space="preserve">
+    <value>Importer une sauvegarde</value>
+  </data>
+  <data name="BackupImport_AdditionalIcons" xml:space="preserve">
+    <value>Icônes supplémentaires</value>
+  </data>
+  
+  <!-- TBG Import -->
+  <data name="TbgImport_Title" xml:space="preserve">
+    <value>Importer TBG</value>
+  </data>
+</root>

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
 using Microsoft.UI;
@@ -11,17 +11,16 @@ using WinRT.Interop;
 using WinRT;
 using System.Diagnostics;
 using System.Drawing;
+using AppGroup.Interop;
 namespace AppGroup {
     public class WindowHelper {
         private readonly Window _window;
-        private AppWindow _appWindow;
+        private AppWindow _appWindow = null!;
         private IntPtr _hWnd;
-        private SystemBackdropConfiguration _configurationSource;
-        private MicaBackdrop _micaBackdrop;
-        private DesktopAcrylicController _acrylicController;
+        private SystemBackdropConfiguration? _configurationSource;
+        private MicaBackdrop? _micaBackdrop;
+        private DesktopAcrylicController? _acrylicController;
         private bool _micaEnabled;
-        private bool _extendContent;
-        private bool _canMaximize;
         private bool _centerWindow;
         private int _minWidth = 0;
         private int _minHeight = 0;
@@ -44,6 +43,7 @@ namespace AppGroup {
 
         private const int WM_GETMINMAXINFO = 0x0024;
 
+#pragma warning disable CS0649
         private struct MINMAXINFO {
             public System.Drawing.Point ptReserved;
             public System.Drawing.Point ptMaxSize;
@@ -51,6 +51,7 @@ namespace AppGroup {
             public System.Drawing.Point ptMinTrackSize;
             public System.Drawing.Point ptMaxTrackSize;
         }
+#pragma warning restore CS0649
    
 
 
@@ -327,7 +328,9 @@ namespace AppGroup {
 
         private int WindowSubClass(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, IntPtr uIdSubclass, uint dwRefData) {
             if (uMsg == WM_GETMINMAXINFO) {
-                MINMAXINFO mmi = (MINMAXINFO)Marshal.PtrToStructure(lParam, typeof(MINMAXINFO));
+                if (Marshal.PtrToStructure(lParam, typeof(MINMAXINFO)) is not MINMAXINFO mmi) {
+                    return DefSubclassProc(hWnd, uMsg, wParam, lParam);
+                }
                 mmi.ptMinTrackSize.X = _minWidth;
                 mmi.ptMinTrackSize.Y = _minHeight;
 

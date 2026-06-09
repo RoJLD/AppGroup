@@ -1,16 +1,20 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using AppGroup.Interop;
 
 namespace AppGroup {
     public class SystemTrayManager {
         private static IntPtr _hwnd = IntPtr.Zero;
         private static IntPtr _hIcon = IntPtr.Zero;
         private static IntPtr _hMenu = IntPtr.Zero;
-        private static NativeMethods.WndProcDelegate _wndProcDelegate;
-        private static Action _onShowCallback;
-        private static Action _onExitCallback;
+        // Conservé en champ static pour empêcher le GC de collecter le delegate passé en P/Invoke.
+        // Assigné dans EnsureWindow() avant toute utilisation native.
+        private static NativeMethods.WndProcDelegate _wndProcDelegate = null!;
+        // Assignés dans Initialize() avant toute invocation.
+        private static Action _onShowCallback = null!;
+        private static Action _onExitCallback = null!;
         private static bool _isInitialized = false;
         private static bool _isVisible = false;
         private static int WM_TASKBARCREATED;
@@ -111,11 +115,11 @@ namespace AppGroup {
                 lpfnWndProc = Marshal.GetFunctionPointerForDelegate(_wndProcDelegate),
                 cbClsExtra = 0,
                 cbWndExtra = 0,
-                hInstance = NativeMethods.GetModuleHandle(null),
+                hInstance = NativeMethods.GetModuleHandle(null!),
                 hIcon = IntPtr.Zero,
                 hCursor = NativeMethods.LoadCursor(IntPtr.Zero, 32512u),
                 hbrBackground = IntPtr.Zero,
-                lpszMenuName = null,
+                lpszMenuName = null!,
                 lpszClassName = WndClassName,
                 hIconSm = IntPtr.Zero
             };
@@ -126,7 +130,7 @@ namespace AppGroup {
                 0, WndClassName, "WinUI3 AppGroup Tray Window",
                 0, 0, 0, 0, 0,
                 IntPtr.Zero, IntPtr.Zero,
-                NativeMethods.GetModuleHandle(null), IntPtr.Zero);
+                NativeMethods.GetModuleHandle(null!), IntPtr.Zero);
         }
 
         // ── Icon & Menu ───────────────────────────────────────────────────────

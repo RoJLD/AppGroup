@@ -8,9 +8,9 @@
 
     namespace AppGroup {
         public class BackupGroupPreviewItem : INotifyPropertyChanged {
-            public string GroupName { get; set; }
+            public string GroupName { get; set; } = string.Empty;
             public int ShortcutCount { get; set; }
-            public string GroupIcon { get; set; }
+            public string GroupIcon { get; set; } = string.Empty;
             public List<string> PathIcons { get; set; } = new List<string>();      // ADD
             public int AdditionalIconsCount { get; set; }                          // ADD
             public string AdditionalIconsText =>                                   // ADD
@@ -21,7 +21,7 @@
                 get => _isSelected;
                 set { _isSelected = value; PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSelected))); }
             }
-            public event PropertyChangedEventHandler PropertyChanged;
+            public event PropertyChangedEventHandler? PropertyChanged;
         }
 
         public sealed partial class BackupImportDialog : ContentDialog {

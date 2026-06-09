@@ -34,7 +34,7 @@
                         <Button Click="GitHubButton_Click" HorizontalAlignment="Left" Background="Transparent"  BorderThickness="0">
                             <StackPanel Orientation="Horizontal" Spacing="5">
                                 <Image Source="{ThemeResource GitHubIcon}" Width="15" Height="15"/>
-                                <TextBlock Text="IanDiv" FontSize="13" VerticalAlignment="Center"/>
+                                <TextBlock Text="RoJLD" FontSize="13" VerticalAlignment="Center"/>
                             </StackPanel>
                         </Button>
 

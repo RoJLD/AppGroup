@@ -1,4 +1,4 @@
-﻿using IWshRuntimeLibrary;
+using IWshRuntimeLibrary;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -11,6 +11,12 @@ using File = System.IO.File;
 
 namespace AppGroup
 {
+    /// <summary>
+    /// DEPRECATED: Use ConfigService instead.
+    /// This class is kept for backward compatibility but should not be used in new code.
+    /// All functionality has been migrated to ConfigService.
+    /// </summary>
+    [Obsolete("Use ConfigService instead. This class will be removed in a future version.")]
     public class JsonConfigHelper
     {
        
@@ -114,8 +120,8 @@ namespace AppGroup
         }
         public static void AddGroupToJson(string filePath, int groupId, string groupName, bool groupHeader, string groupIcon, int groupCol, bool showLabels, int labelSize, string labelPosition, string headerPosition, string layout, bool showOnTray, Dictionary<string, (string tooltip, string args, string icon)> paths) {
             try {
-                string directory = Path.GetDirectoryName(filePath);
-                if (!Directory.Exists(directory)) {
+                string? directory = Path.GetDirectoryName(filePath);
+                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory)) {
                     Directory.CreateDirectory(directory);
                 }
                 if (!System.IO.File.Exists(filePath)) {
@@ -161,7 +167,7 @@ namespace AppGroup
                     throw new KeyNotFoundException($"Group ID {groupId} not found in JSON file.");
                 }
 
-                string groupName = jsonObject[groupId.ToString()]?["groupName"]?.GetValue<string>();
+                string? groupName = jsonObject[groupId.ToString()]?["groupName"]?.GetValue<string>();
 
                 if (string.IsNullOrEmpty(groupName)) {
                     throw new InvalidOperationException($"Could not retrieve group name for Group ID {groupId}.");
@@ -171,7 +177,7 @@ namespace AppGroup
 
                 System.IO.File.WriteAllText(filePath, JsonSerializer.Serialize(jsonObject, new JsonSerializerOptions { WriteIndented = true }));
 
-                string exeDirectory = Path.GetDirectoryName(Environment.ProcessPath);
+                string? exeDirectory = Path.GetDirectoryName(Environment.ProcessPath);
 
                 string localAppDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
                 string appDataPath = Path.Combine(localAppDataPath, "AppGroup");
@@ -180,7 +186,7 @@ namespace AppGroup
                 string groupFolderPath = Path.Combine(groupsFolder, groupName);
 
                 if (Directory.Exists(groupFolderPath)) {
-                    Directory.Delete(groupFolderPath, true); 
+                    Directory.Delete(groupFolderPath, true);
                 }
             }
             catch (Exception ex) {
@@ -195,10 +201,10 @@ namespace AppGroup
                 JsonNode jsonObject = JsonNode.Parse(jsonContent) ?? new JsonObject();
 
                 if (jsonObject.AsObject().ContainsKey(groupId.ToString())) {
-                    JsonNode groupToDuplicate = jsonObject[groupId.ToString()];
+                    JsonNode? groupToDuplicate = jsonObject[groupId.ToString()];
                     int newGroupId = GetNextGroupId();
 
-                    JsonObject duplicatedGroup = groupToDuplicate.AsObject().DeepClone() as JsonObject;
+                    JsonObject duplicatedGroup = groupToDuplicate?.AsObject().DeepClone() as JsonObject ?? new JsonObject();
                     string originalGroupName = duplicatedGroup["groupName"]?.GetValue<string>() ?? "Group";
                     string newGroupName = GetUniqueGroupName(jsonObject, $"{originalGroupName} - Copy");
 
@@ -214,7 +220,7 @@ namespace AppGroup
 
                     System.IO.File.WriteAllText(filePath, JsonSerializer.Serialize(jsonObject, new JsonSerializerOptions { WriteIndented = true }));
 
-                    string exeDirectory = Path.GetDirectoryName(Environment.ProcessPath);
+                    string? exeDirectory = Path.GetDirectoryName(Environment.ProcessPath);
                     string localAppDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
                     string appDataPath = Path.Combine(localAppDataPath, "AppGroup");
                     string groupsFolder = Path.Combine(appDataPath, "Groups");
@@ -242,7 +248,7 @@ namespace AppGroup
             while (true) {
                 bool nameExists = false;
                 foreach (var group in jsonObject.AsObject()) {
-                    if (group.Value["groupName"]?.GetValue<string>() == uniqueName) {
+                    if (group.Value?["groupName"]?.GetValue<string>() == uniqueName) {
                         nameExists = true;
                         break;
                     }
@@ -264,8 +270,8 @@ namespace AppGroup
                 string jsonContent = await ReadJsonFromFileAsync(filePath);
                 JsonNode jsonObject = JsonNode.Parse(jsonContent) ?? new JsonObject();
                 foreach (var group in jsonObject.AsObject()) {
-                    if (group.Value["groupName"]?.GetValue<string>() == groupName) {
-                        JsonObject paths = group.Value["path"]?.AsObject();
+                    if (group.Value?["groupName"]?.GetValue<string>() == groupName) {
+                        JsonObject? paths = group.Value?["path"]?.AsObject();
                         if (paths != null) {
                             var allTasks = new List<Task>();
                             foreach (var pathEntry in paths) {
@@ -294,7 +300,7 @@ namespace AppGroup
                                             UseShellExecute = true,
                                             WindowStyle = ProcessWindowStyle.Hidden
                                         };
-                                        Process process = Process.Start(psi);
+                                        Process? process = Process.Start(psi);
                                         process?.Close();
                                     }
                                     catch (Exception ex) {
@@ -434,10 +440,10 @@ namespace AppGroup
                 JsonNode jsonObject = JsonNode.Parse(jsonContent) ?? new JsonObject();
 
                 if (jsonObject.AsObject().ContainsKey(groupId.ToString())) {
-                    string groupName = jsonObject[groupId.ToString()]?["groupName"]?.GetValue<string>();
+                    string? groupName = jsonObject[groupId.ToString()]?["groupName"]?.GetValue<string>();
 
                     if (!string.IsNullOrEmpty(groupName)) {
-                        string exeDirectory = Path.GetDirectoryName(Environment.ProcessPath);
+                        string? exeDirectory = Path.GetDirectoryName(Environment.ProcessPath);
                         string localAppDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
                         string appDataPath = Path.Combine(localAppDataPath, "AppGroup");
                         string groupsFolder = Path.Combine(appDataPath, "Groups");

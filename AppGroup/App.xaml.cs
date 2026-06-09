@@ -1,4 +1,4 @@
-﻿
+
 
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -13,6 +13,7 @@ using Windows.UI.StartScreen;
 using Windows.UI.WindowManagement;
 using WinRT.Interop;
 using WinUIEx;
+using AppGroup.Interop;
 
 namespace AppGroup {
 
@@ -21,7 +22,6 @@ namespace AppGroup {
         private PopupWindow? popupWindow;
         private EditGroupWindow? editWindow;
 
-        private nint hWnd;
         private bool useFileMode = false;
 
         public App() {
@@ -54,7 +54,7 @@ namespace AppGroup {
             try {
                 string[] cmdArgs = Environment.GetCommandLineArgs();
                 bool isSilent = HasSilentFlag(cmdArgs);
-                IntPtr existingPopupHWnd = NativeMethods.FindWindow(null, "Popup Window");
+                IntPtr existingPopupHWnd = NativeMethods.FindWindow(null!, "Popup Window");
 
                 if (isSilent) {
                     if (existingPopupHWnd != IntPtr.Zero) {
@@ -313,7 +313,7 @@ namespace AppGroup {
 
 
 
-                    IntPtr popupHWnd = NativeMethods.FindWindow(null, "Popup Window");
+                    IntPtr popupHWnd = NativeMethods.FindWindow(null!, "Popup Window");
 
                     Task.Delay(200).Wait();
                     BringWindowToFront(popupWindow.GetWindowHandle());
@@ -422,7 +422,7 @@ namespace AppGroup {
 
         private void ShowAppGroup() {
             try {
-                IntPtr hwnd = NativeMethods.FindWindow(null, "App Group");
+                IntPtr hwnd = NativeMethods.FindWindow(null!, "App Group");
                 if (hwnd != IntPtr.Zero) {
                     NativeMethods.SendString(hwnd, "__SHOW_MAIN__");
                 }
@@ -495,7 +495,7 @@ namespace AppGroup {
             ApplyThemeToWindow(editWindow, theme);
         }
 
-        private void ApplyThemeToWindow(Window window, ElementTheme theme) {
+        private void ApplyThemeToWindow(Window? window, ElementTheme theme) {
             if (window == null) return;
 
             if (window.Content is FrameworkElement root) {

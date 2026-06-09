@@ -1,4 +1,4 @@
-﻿using Microsoft.UI.Dispatching;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -12,12 +12,16 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
-using System.IO;
 using System.Linq;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading;
+using AppGroup.Interop;
+using AppGroup.Models;
+using AppGroup.Services;
+using AppGroup.Utilities;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
@@ -27,18 +31,18 @@ using WinUIEx;
 namespace AppGroup {
     public class GroupItem : INotifyPropertyChanged {
         public int GroupId { get; set; }
-        private string groupName;
-        public string GroupName {
+        private string? groupName;
+        public string? GroupName {
             get => groupName;
             set { if (groupName != value) { groupName = value; OnPropertyChanged(nameof(GroupName)); } }
         }
-        private string groupIcon;
-        public string GroupIcon {
+        private string? groupIcon;
+        public string? GroupIcon {
             get => groupIcon;
             set { if (groupIcon != value) { groupIcon = value; OnPropertyChanged(nameof(GroupIcon)); } }
         }
-        private List<string> pathIcons;
-        public List<string> PathIcons {
+        private List<string>? pathIcons;
+        public List<string>? PathIcons {
             get => pathIcons;
             set { if (pathIcons != value) { pathIcons = value; OnPropertyChanged(nameof(PathIcons)); } }
         }
@@ -54,10 +58,10 @@ namespace AppGroup {
                 }
             }
         }
-        public Dictionary<string, string> Tooltips { get; set; } = new Dictionary<string, string>();
-        public Dictionary<string, string> Args { get; set; } = new Dictionary<string, string>();
-        public Dictionary<string, string> CustomIcons { get; set; } = new Dictionary<string, string>();
-        public event PropertyChangedEventHandler PropertyChanged;
+        public Dictionary<string, string?> Tooltips { get; set; } = new Dictionary<string, string?>();
+        public Dictionary<string, string?> Args { get; set; } = new Dictionary<string, string?>();
+        public Dictionary<string, string?> CustomIcons { get; set; } = new Dictionary<string, string?>();
+        public event PropertyChangedEventHandler? PropertyChanged;
         protected void OnPropertyChanged(string propertyName) =>
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
@@ -66,24 +70,21 @@ namespace AppGroup {
         private readonly Dictionary<int, EditGroupWindow> _openEditWindows = new Dictionary<int, EditGroupWindow>();
         private BackupHelper _backupHelper;
         private ObservableCollection<GroupItem> GroupItems;
-        private FileSystemWatcher _fileWatcher;
+        private FileSystemWatcher _fileWatcher = null!;
         private readonly object _loadLock = new object();
-        private bool _isLoading = false;
-        private string tempIcon;
         private readonly IconHelper _iconHelper;
         private DispatcherTimer debounceTimer;
 
-        
+
         private DispatcherTimer _watcherDebounceTimer;
 
         private SupportDialogHelper _supportDialogHelper;
         private bool _isReordering = false;
         private readonly Dictionary<int, string> _tempDragFiles = new Dictionary<int, string>();
         private IntPtr _hwnd;
-        private NativeMethods.SubclassProc _subclassProc;
+        private NativeMethods.SubclassProc _subclassProc = null!;
         private const int SUBCLASS_ID = 2;
         private bool _wasHidden = false;
-        private CancellationTokenSource _dragCleanupCts;
 
         private readonly CancellationTokenSource _windowCloseCts = new CancellationTokenSource();
         private bool _isIconDragging = false;
@@ -117,7 +118,7 @@ namespace AppGroup {
             _watcherDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
             _watcherDebounceTimer.Tick += async (s, e) => {
                 _watcherDebounceTimer.Stop();
-                string jsonFilePath = JsonConfigHelper.GetDefaultConfigPath();
+                string jsonFilePath = ConfigService.GetDefaultConfigPath();
                 if (!IsFileInUse(jsonFilePath))
                     await UpdateGroupItemAsync(jsonFilePath);
             };
@@ -131,7 +132,7 @@ namespace AppGroup {
         }
 
         private void EnsureConfigFileExists() {
-            string path = JsonConfigHelper.GetDefaultConfigPath();
+            string path = ConfigService.GetDefaultConfigPath();
             if (!File.Exists(path))
                 File.WriteAllText(path, "{}");
         }
@@ -202,10 +203,9 @@ namespace AppGroup {
         private IntPtr SubclassProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam, IntPtr uIdSubclass, IntPtr dwRefData) {
             if (msg == NativeMethods.WM_COPYDATA) {
                 try {
-                    NativeMethods.COPYDATASTRUCT cds = (NativeMethods.COPYDATASTRUCT)Marshal.PtrToStructure(
-                        lParam, typeof(NativeMethods.COPYDATASTRUCT));
+                    NativeMethods.COPYDATASTRUCT cds = Marshal.PtrToStructure<NativeMethods.COPYDATASTRUCT>(lParam);
                     if (cds.dwData == (IntPtr)100) {
-                        string command = Marshal.PtrToStringUni(cds.lpData);
+                        string? command = Marshal.PtrToStringUni(cds.lpData);
                         if (command == "__SHOW_MAIN__") {
                             DispatcherQueue.TryEnqueue(() => {
                                 NativeMethods.ShowWindow(_hwnd, NativeMethods.SW_RESTORE);
@@ -306,10 +306,10 @@ namespace AppGroup {
             debounceTimer.Start();
         }
 
-        private void FilterGroups(object sender, object e) {
+        private void FilterGroups(object? sender, object e) {
             debounceTimer.Stop();
             string searchQuery = SearchTextBox.Text.ToLower();
-            var filteredGroups = GroupItems.Where(g => g.GroupName.ToLower().Contains(searchQuery)).ToList();
+            var filteredGroups = GroupItems.Where(g => (g.GroupName ?? string.Empty).ToLower().Contains(searchQuery)).ToList();
             GroupListView.ItemsSource = filteredGroups.Count > 0 ? filteredGroups : GroupItems;
             GroupsCount.Text = GroupListView.Items.Count > 1
                 ? GroupListView.Items.Count + " Groups"
@@ -328,34 +328,34 @@ namespace AppGroup {
                 JsonNode jsonObject = JsonNode.Parse(jsonContent ?? "{}") ?? new JsonObject();
                 var groupDictionary = jsonObject.AsObject();
 
-                var updates = new List<(int groupId, string newName, string newIcon, List<string> icons, int extra,
-                    Dictionary<string, string> tooltips, Dictionary<string, string> args, Dictionary<string, string> customIcons)>();
+                var updates = new List<(int groupId, string? newName, string? newIcon, List<string> icons, int extra,
+                    Dictionary<string, string?> tooltips, Dictionary<string, string?> args, Dictionary<string, string?> customIcons)>();
 
                 foreach (var property in groupDictionary) {
                     if (!int.TryParse(property.Key, out int groupId)) continue;
                     try {
-                        string newGroupName = property.Value?["groupName"]?.GetValue<string>();
-                        string newGroupIcon = IconHelper.FindOrigIcon(property.Value?["groupIcon"]?.GetValue<string>());
+                        string? newGroupName = property.Value?["groupName"]?.GetValue<string>();
+                        string? newGroupIcon = IconHelper.FindOrigIcon(property.Value?["groupIcon"]?.GetValue<string>() ?? string.Empty);
                         var paths = property.Value?["path"]?.AsObject();
 
-                        var tooltips = new Dictionary<string, string>();
-                        var args = new Dictionary<string, string>();
-                        var customIcons = new Dictionary<string, string>();
+                        var tooltips = new Dictionary<string, string?>();
+                        var args = new Dictionary<string, string?>();
+                        var customIcons = new Dictionary<string, string?>();
                         var iconPaths = new List<string>();
 
                         if (paths?.Count > 0) {
                             foreach (var path in paths.Where(p => p.Value != null)) {
                                 string filePath = path.Key;
-                                string tooltip = path.Value["tooltip"]?.GetValue<string>();
-                                string argVal = path.Value["args"]?.GetValue<string>();
-                                string customIcon = path.Value["icon"]?.GetValue<string>();
+                                string? tooltip = path.Value!["tooltip"]?.GetValue<string>();
+                                string? argVal = path.Value!["args"]?.GetValue<string>();
+                                string? customIcon = path.Value!["icon"]?.GetValue<string>();
 
                                 tooltips[filePath] = tooltip;
                                 args[filePath] = argVal;
                                 customIcons[filePath] = customIcon;
 
-                                string iconResult;
-                                string effectiveCustom = string.IsNullOrWhiteSpace(customIcon) ? null : customIcon;
+                                string? iconResult;
+                                string? effectiveCustom = string.IsNullOrWhiteSpace(customIcon) ? null : customIcon;
                                 if (effectiveCustom != null && File.Exists(effectiveCustom)) {
                                     iconResult = effectiveCustom;
                                 }
@@ -487,7 +487,7 @@ namespace AppGroup {
 
         private async Task UpdateJsonWithNewOrderAsync(List<GroupItem> reorderedItems) {
             try {
-                string jsonFilePath = JsonConfigHelper.GetDefaultConfigPath();
+                string jsonFilePath = ConfigService.GetDefaultConfigPath();
                 _fileWatcher.EnableRaisingEvents = false;
 
                 string jsonContent = await File.ReadAllTextAsync(jsonFilePath);
@@ -522,9 +522,10 @@ namespace AppGroup {
         }
 
         private void SetupFileWatcher() {
-            string jsonFilePath = JsonConfigHelper.GetDefaultConfigPath();
-            string directoryPath = Path.GetDirectoryName(jsonFilePath);
+            string jsonFilePath = ConfigService.GetDefaultConfigPath();
+            string? directoryPath = Path.GetDirectoryName(jsonFilePath);
             string fileName = Path.GetFileName(jsonFilePath);
+            if (string.IsNullOrEmpty(directoryPath)) return;
 
             _fileWatcher = new FileSystemWatcher(directoryPath, fileName) {
                 NotifyFilter = NotifyFilters.LastWrite
@@ -604,7 +605,7 @@ namespace AppGroup {
                 using var cts = CancellationTokenSource.CreateLinkedTokenSource(_windowCloseCts.Token);
                 cts.CancelAfter(TimeSpan.FromSeconds(10));
 
-                string jsonFilePath = JsonConfigHelper.GetDefaultConfigPath();
+                string jsonFilePath = ConfigService.GetDefaultConfigPath();
                 if (!File.Exists(jsonFilePath))
                     File.WriteAllText(jsonFilePath, "{}");
 
@@ -660,18 +661,18 @@ namespace AppGroup {
                 _loadingSemaphore.Release();
             }
         }
-        private async Task<GroupItem> CreateGroupItemAsync(int groupId, JsonNode groupNode) {
-            string groupName = groupNode?["groupName"]?.GetValue<string>();
-            string groupIcon = IconHelper.FindOrigIcon(groupNode?["groupIcon"]?.GetValue<string>());
+        private async Task<GroupItem> CreateGroupItemAsync(int groupId, JsonNode? groupNode) {
+            string? groupName = groupNode?["groupName"]?.GetValue<string>();
+            string? groupIcon = IconHelper.FindOrigIcon(groupNode?["groupIcon"]?.GetValue<string>() ?? string.Empty);
 
             var groupItem = new GroupItem {
                 GroupId = groupId,
                 GroupName = groupName,
                 GroupIcon = groupIcon,
                 PathIcons = new List<string>(),
-                Tooltips = new Dictionary<string, string>(),
-                Args = new Dictionary<string, string>(),
-                CustomIcons = new Dictionary<string, string>()
+                Tooltips = new Dictionary<string, string?>(),
+                Args = new Dictionary<string, string?>(),
+                CustomIcons = new Dictionary<string, string?>()
             };
 
             var paths = groupNode?["path"]?.AsObject();
@@ -686,21 +687,21 @@ namespace AppGroup {
                     if (_windowCloseCts.IsCancellationRequested) break;
 
                     string filePath = path.Key;
-                    string tooltip = path.Value["tooltip"]?.GetValue<string>();
-                    string argVal = path.Value["args"]?.GetValue<string>();
-                    string customIcon = path.Value["icon"]?.GetValue<string>();
+                    string? tooltip = path.Value!["tooltip"]?.GetValue<string>();
+                    string? argVal = path.Value!["args"]?.GetValue<string>();
+                    string? customIcon = path.Value!["icon"]?.GetValue<string>();
 
                     groupItem.Tooltips[filePath] = tooltip;
                     groupItem.Args[filePath] = argVal;
                     groupItem.CustomIcons[filePath] = customIcon;
 
-                    string iconResult = null;
-                    string effectiveCustomIcon = string.IsNullOrWhiteSpace(customIcon) ? null : customIcon;
+                    string? iconResult = null;
+                    string? effectiveCustomIcon = string.IsNullOrWhiteSpace(customIcon) ? null : customIcon;
                     if (effectiveCustomIcon != null && File.Exists(effectiveCustomIcon)) {
                         iconResult = effectiveCustomIcon;
                     }
                     else {
-                        string cachedIconPath;
+                        string? cachedIconPath;
                         try {
                             cachedIconPath = Path.GetExtension(filePath).Equals(".url", StringComparison.OrdinalIgnoreCase)
                                 ? await IconHelper.GetUrlFileIconAsync(filePath)
@@ -729,7 +730,7 @@ namespace AppGroup {
             return groupItem;
         }
        
-        private async Task<string> ReGenerateIconAsync(string filePath, string outputDirectory) {
+        private async Task<string?> ReGenerateIconAsync(string filePath, string outputDirectory) {
             try {
                 if (IconCache.TryGetCachedPath(filePath, out _)) {
                     // Entry exists and PNG is on disk — no eviction needed
@@ -739,7 +740,7 @@ namespace AppGroup {
                     IconCache.InvalidateEntry(filePath);
                 }
 
-                string regeneratedIconPath = await IconCache.GetIconPathAsync(filePath);
+                string? regeneratedIconPath = await IconCache.GetIconPathAsync(filePath);
                 if (!string.IsNullOrEmpty(regeneratedIconPath) && File.Exists(regeneratedIconPath))
                     return regeneratedIconPath;
             }
@@ -759,14 +760,14 @@ namespace AppGroup {
             TaskbarManager.ForceTaskbarUpdateAsync();
 
         private void AddGroup(object sender, RoutedEventArgs e) {
-            int groupId = JsonConfigHelper.GetNextGroupId();
+            int groupId = ConfigService.GetNextGroupId();
             SaveGroupIdToFile(groupId.ToString());
             EditGroupHelper editGroup = new EditGroupHelper("Edit Group", groupId);
             editGroup.Activate();
         }
 
         private async void GitHubButton_Click(object sender, RoutedEventArgs e) =>
-            await Windows.System.Launcher.LaunchUriAsync(new Uri("https://github.com/iandiv"));
+            await Windows.System.Launcher.LaunchUriAsync(new Uri("https://github.com/RoJLD"));
 
         private async void CoffeeButton_Click(object sender, RoutedEventArgs e) =>
             await Windows.System.Launcher.LaunchUriAsync(new Uri("https://ko-fi.com/iandiv/tip"));
@@ -815,8 +816,8 @@ namespace AppGroup {
                 };
                 var result = await deleteDialog.ShowAsync();
                 if (result == ContentDialogResult.Primary) {
-                    string filePath = JsonConfigHelper.GetDefaultConfigPath();
-                    JsonConfigHelper.DeleteGroupFromJson(filePath, selectedGroup.GroupId);
+                    string filePath = ConfigService.GetDefaultConfigPath();
+                    ConfigService.DeleteGroup(selectedGroup.GroupId);
                     await LoadGroupsAsync();
                 }
             }
@@ -953,15 +954,14 @@ namespace AppGroup {
         }
         private async void DuplicateButton_Click(object sender, RoutedEventArgs e) {
             if (sender is MenuFlyoutItem menuItem && menuItem.DataContext is GroupItem selectedGroup) {
-                string filePath = JsonConfigHelper.GetDefaultConfigPath();
-                JsonConfigHelper.DuplicateGroupInJson(filePath, selectedGroup.GroupId);
+                ConfigService.DuplicateGroup(selectedGroup.GroupId);
                 await LoadGroupsAsync();
             }
         }
 
         private void OpenLocationButton_Click(object sender, RoutedEventArgs e) {
             if (sender is MenuFlyoutItem menuItem && menuItem.DataContext is GroupItem selectedGroup)
-                JsonConfigHelper.OpenGroupFolder(selectedGroup.GroupId);
+                ConfigService.OpenGroupFolder(selectedGroup.GroupId);
         }
 
         private void GroupListView_SelectionChanged(object sender, SelectionChangedEventArgs e) {
@@ -972,3 +972,6 @@ namespace AppGroup {
         }
     }
 }
+
+
+

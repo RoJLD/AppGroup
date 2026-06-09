@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -7,17 +7,20 @@ using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using Windows.Storage;
+using AppGroup.Models;
+using AppGroup.Services;
+using AppGroup.Utilities;
 
 namespace AppGroup {
     public class TbgGroupPreview {
-        public StorageFolder GroupFolder { get; set; }
-        public string GroupName { get; set; }
+        public StorageFolder? GroupFolder { get; set; }
+        public string GroupName { get; set; } = string.Empty;
         public int ShortcutCount { get; set; }
         public int GroupCol { get; set; }
         public List<string> PathIcons { get; set; } = new List<string>();
         public int AdditionalIconsCount { get; set; }
         public string AdditionalIconsText => AdditionalIconsCount > 0 ? $"+{AdditionalIconsCount}" : string.Empty;
-        public string GroupIconPath { get; set; }
+        public string GroupIconPath { get; set; } = string.Empty;
 
     }
 
@@ -30,9 +33,10 @@ namespace AppGroup {
                 if (!File.Exists(xmlPath)) continue;
 
                 XDocument doc = XDocument.Load(xmlPath);
-                XElement cat = doc.Root;
+                XElement? cat = doc.Root;
+                if (cat is null) continue;
 
-                string groupName = cat.Element("n")?.Value?.Trim();
+                string? groupName = cat.Element("n")?.Value?.Trim();
                 if (string.IsNullOrEmpty(groupName))
                     groupName = Path.GetFileName(groupPath);
 
@@ -45,11 +49,11 @@ namespace AppGroup {
 
                 var iconPaths = new List<string>();
                 foreach (XElement sc in shortcuts) {
-                    string filePath = sc.Element("FilePath")?.Value?.Trim();
-                    string shortcutName = sc.Element("n")?.Value?.Trim();
+                    string? filePath = sc.Element("FilePath")?.Value?.Trim();
+                    string? shortcutName = sc.Element("n")?.Value?.Trim();
                     if (string.IsNullOrEmpty(filePath)) continue;
 
-                    string tbgIconPath = null;
+                    string? tbgIconPath = null;
                     if (!string.IsNullOrEmpty(shortcutName)) {
                         string candidate = Path.Combine(groupPath, "Icons", shortcutName + ".png");
                         if (File.Exists(candidate)) tbgIconPath = candidate;
@@ -60,7 +64,7 @@ namespace AppGroup {
                     }
                     else {
                         try {
-                            string cached = Path.GetExtension(filePath).Equals(".url", StringComparison.OrdinalIgnoreCase)
+                            string? cached = Path.GetExtension(filePath).Equals(".url", StringComparison.OrdinalIgnoreCase)
                                 ? await IconHelper.GetUrlFileIconAsync(filePath)
                                 : await IconCache.GetIconPathAsync(filePath);
                             if (!string.IsNullOrEmpty(cached) && File.Exists(cached))
@@ -70,23 +74,23 @@ namespace AppGroup {
                     }
                 }
 
-                string groupIconPath = Path.Combine(groupPath, "GroupImage.png");
+                string? groupIconPath = Path.Combine(groupPath, "GroupImage.png");
                 if (!File.Exists(groupIconPath)) groupIconPath = null;
 
                 // Wrap path in StorageFolder only for GroupFolder (needed by ImportSelectedAsync)
-                StorageFolder groupStorageFolder = null;
+                StorageFolder? groupStorageFolder = null;
                 try { groupStorageFolder = await StorageFolder.GetFolderFromPathAsync(groupPath); }
                 catch { }
 
                 int maxIcons = 7;
                 result.Add(new TbgGroupPreview {
                     GroupFolder = groupStorageFolder,
-                    GroupName = groupName,
+                    GroupName = groupName ?? string.Empty,
                     ShortcutCount = shortcuts.Count,
                     GroupCol = groupCol,
                     PathIcons = iconPaths.Take(maxIcons).ToList(),
                     AdditionalIconsCount = Math.Max(0, iconPaths.Count - maxIcons),
-                    GroupIconPath = groupIconPath
+                    GroupIconPath = groupIconPath ?? string.Empty
                 });
             }
 
@@ -98,7 +102,7 @@ namespace AppGroup {
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AppGroup");
             string iconsDir = Path.Combine(appGroupBase, "Icons");
             string groupsDir = Path.Combine(appGroupBase, "Groups");
-            string jsonPath = JsonConfigHelper.GetDefaultConfigPath();
+            string jsonPath = ConfigService.GetDefaultConfigPath();
 
             Directory.CreateDirectory(iconsDir);
             Directory.CreateDirectory(groupsDir);
@@ -109,11 +113,12 @@ namespace AppGroup {
             var rootDoc = JsonDocument.Parse(existing);
             JsonObject root = JsonObject.Create(rootDoc.RootElement.Clone()) ?? new JsonObject();
 
-            int nextId = JsonConfigHelper.GetNextGroupId();
+            int nextId = ConfigService.GetNextGroupId();
             int imported = 0;
 
             foreach (var preview in selected) {
-                StorageFolder groupStorageFolder = preview.GroupFolder;
+                StorageFolder? groupStorageFolder = preview.GroupFolder;
+                if (groupStorageFolder is null) continue;
 
                 StorageFile xmlStorageFile;
                 try {
@@ -125,18 +130,19 @@ namespace AppGroup {
                 using (var stream = await xmlStorageFile.OpenStreamForReadAsync())
                     doc = XDocument.Load(stream);
 
-                XElement cat = doc.Root;
+                XElement? cat = doc.Root;
+                if (cat is null) continue;
 
                 var pathObj = new JsonObject();
                 foreach (XElement sc in cat.Element("ShortcutList")?.Elements("ProgramShortcut")
                                          ?? Array.Empty<XElement>()) {
-                    string filePath = sc.Element("FilePath")?.Value?.Trim();
-                    string shortcutName = sc.Element("n")?.Value?.Trim();
-                    string args = sc.Element("Arguments")?.Value?.Trim();
+                    string? filePath = sc.Element("FilePath")?.Value?.Trim();
+                    string? shortcutName = sc.Element("n")?.Value?.Trim();
+                    string? args = sc.Element("Arguments")?.Value?.Trim();
 
                     if (string.IsNullOrEmpty(filePath)) continue;
 
-                    string copiedIconPath = null;
+                    string? copiedIconPath = null;
                     try {
                         StorageFolder iconsStorageFolder = await groupStorageFolder.GetFolderAsync("Icons");
                         if (!string.IsNullOrEmpty(shortcutName)) {
@@ -209,18 +215,17 @@ namespace AppGroup {
 
                 string shortcutPath = Path.Combine(groupsDir, preview.GroupName, $"{preview.GroupName}.lnk");
                 string targetPath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName
-                    ?? Path.Combine(Path.GetDirectoryName(Environment.ProcessPath), "AppGroup.exe");
+                    ?? Path.Combine(Path.GetDirectoryName(Environment.ProcessPath) ?? string.Empty, "AppGroup.exe");
 
                 if (File.Exists(destIcoPath)) {
-                    IWshRuntimeLibrary.IWshShell wshShell = new IWshRuntimeLibrary.WshShell();
-                    IWshRuntimeLibrary.IWshShortcut shortcut =
-                        (IWshRuntimeLibrary.IWshShortcut)wshShell.CreateShortcut(shortcutPath);
-                    shortcut.TargetPath = targetPath;
-                    shortcut.Arguments = $"\"{preview.GroupName}\"";
-                    shortcut.Description = $"{preview.GroupName} - AppGroup Shortcut";
-                    shortcut.IconLocation = destIcoPath;
-                    shortcut.WorkingDirectory = Path.GetDirectoryName(targetPath);
-                    shortcut.Save();
+                    ShortcutHelper.CreateShortcut(
+                        shortcutPath,
+                        targetPath,
+                        arguments: $"\"{preview.GroupName}\"",
+                        description: $"{preview.GroupName} - AppGroup Shortcut",
+                        workingDirectory: Path.GetDirectoryName(targetPath) ?? string.Empty,
+                        iconPath: destIcoPath
+                    );
                 }
 
                 imported++;
@@ -233,7 +238,7 @@ namespace AppGroup {
         }
         // Add to TbgImporter
         public static List<string> FindDuplicates(List<TbgGroupPreview> selected) {
-            string jsonPath = JsonConfigHelper.GetDefaultConfigPath();
+            string jsonPath = ConfigService.GetDefaultConfigPath();
             if (!File.Exists(jsonPath)) return new List<string>();
 
             var root = JsonDocument.Parse(File.ReadAllText(jsonPath)).RootElement;
@@ -251,7 +256,7 @@ namespace AppGroup {
             var root = new DirectoryInfo(rootFolder.Path);
 
             // Variant 1: root/config
-            DirectoryInfo config = root.GetDirectories("config", SearchOption.TopDirectoryOnly)
+            DirectoryInfo? config = root.GetDirectories("config", SearchOption.TopDirectoryOnly)
                                        .FirstOrDefault();
 
             // Variant 2: root/*/config (any single subdirectory)
@@ -270,3 +275,4 @@ namespace AppGroup {
         }
     }
 }
+
