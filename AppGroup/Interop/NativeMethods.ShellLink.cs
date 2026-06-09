@@ -13,17 +13,16 @@ namespace AppGroup.Interop
         #region ShellLink COM Interfaces
 
         [ComImport]
-        [Guid("00021401-0000-0000-C000-000000000046")]
+        // IID of the IShellLinkW INTERFACE (not the ShellLink CLSID 00021401, which was
+        // wrongly used here and made the QueryInterface cast fail with E_NOINTERFACE).
+        [Guid("000214F9-0000-0000-C000-000000000046")]
         [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
         public interface IShellLinkW
         {
-            // IUnknown methods
-            void GetTypeInfoCount(out uint pcTInfo);
-            void GetTypeInfo(uint iTInfo, uint lcid, IntPtr ppTInfo);
-            void GetIDsOfNames(ref Guid riid, [MarshalAs(UnmanagedType.LPArray, ArraySubType = UnmanagedType.LPWStr)] string[] rgszNames, uint cNames, uint lcid, IntPtr rgDispId);
-            void Invoke(uint dispIdMember, ref Guid riid, uint lcid, uint dwFlags, IntPtr pDispParams, IntPtr pVarResult, IntPtr pExcepInfo, IntPtr puArgErr);
-
-            // IShellLink methods
+            // IShellLink methods (IUnknown's QueryInterface/AddRef/Release are handled
+            // implicitly by InterfaceIsIUnknown and must NOT be redeclared here — and
+            // IShellLink is NOT an IDispatch, so no GetTypeInfo*/Invoke either, or the
+            // vtable layout would be offset and every call would hit the wrong method).
             void GetPath([MarshalAs(UnmanagedType.LPWStr)] StringBuilder pszFile, int cch, ref _WIN32_FIND_DATAW pfd, uint fFlags);
             void GetIDList(out IntPtr ppidl);
             void SetIDList(IntPtr pidl);
@@ -49,13 +48,7 @@ namespace AppGroup.Interop
         [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
         public interface IShellLinkA
         {
-            // IUnknown methods
-            void GetTypeInfoCount(out uint pcTInfo);
-            void GetTypeInfo(uint iTInfo, uint lcid, IntPtr ppTInfo);
-            void GetIDsOfNames(ref Guid riid, [MarshalAs(UnmanagedType.LPArray, ArraySubType = UnmanagedType.LPStr)] string[] rgszNames, uint cNames, uint lcid, IntPtr rgDispId);
-            void Invoke(uint dispIdMember, ref Guid riid, uint lcid, uint dwFlags, IntPtr pDispParams, IntPtr pVarResult, IntPtr pExcepInfo, IntPtr puArgErr);
-
-            // IShellLink methods
+            // IShellLink methods (no IUnknown/IDispatch entries — see IShellLinkW note).
             void GetPath([MarshalAs(UnmanagedType.LPStr)] StringBuilder pszFile, int cch, ref _WIN32_FIND_DATAA pfd, uint fFlags);
             void GetIDList(out IntPtr ppidl);
             void SetIDList(IntPtr pidl);
@@ -115,7 +108,7 @@ namespace AppGroup.Interop
         #region CLSID and IID Constants
 
         public static readonly Guid CLSID_ShellLink = new Guid("00021401-0000-0000-C000-000000000046");
-        public static readonly Guid IID_IShellLinkW = new Guid("00021401-0000-0000-C000-000000000046");
+        public static readonly Guid IID_IShellLinkW = new Guid("000214F9-0000-0000-C000-000000000046");
         public static readonly Guid IID_IShellLinkA = new Guid("000214EE-0000-0000-C000-000000000046");
         public static readonly Guid IID_IPersistFile = new Guid("0000010B-0000-0000-C000-000000000046");
 
@@ -128,13 +121,9 @@ namespace AppGroup.Interop
         [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
         public interface IPersistFile
         {
-            // IUnknown methods
-            void GetTypeInfoCount(out uint pcTInfo);
-            void GetTypeInfo(uint iTInfo, uint lcid, IntPtr ppTInfo);
-            void GetIDsOfNames(ref Guid riid, [MarshalAs(UnmanagedType.LPArray, ArraySubType = UnmanagedType.LPWStr)] string[] rgszNames, uint cNames, uint lcid, IntPtr rgDispId);
-            void Invoke(uint dispIdMember, ref Guid riid, uint lcid, uint dwFlags, IntPtr pDispParams, IntPtr pVarResult, IntPtr pExcepInfo, IntPtr puArgErr);
-
-            // IPersist methods
+            // IPersist method (IUnknown handled implicitly; IPersistFile is NOT an
+            // IDispatch, so no GetTypeInfo*/Invoke — otherwise Save/Load would be
+            // offset in the vtable and silently call the wrong method).
             void GetClassID(out Guid pClassID);
 
             // IPersistFile methods
