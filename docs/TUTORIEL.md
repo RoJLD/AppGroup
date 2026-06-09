@@ -150,6 +150,30 @@ Menu `…` → **Settings** :
 
 Les réglages sont enregistrés dans `%LOCALAPPDATA%\AppGroup\settings.json`.
 
+### A.11 Groupes imbriqués (sous-groupes)
+
+Un groupe peut contenir **un autre groupe** comme élément : au lancement, cliquer
+sur ce sous-groupe ouvre son propre popup (imbrication sur plusieurs niveaux
+possible).
+
+Marche à suivre :
+
+1. Créez le groupe « enfant » (ex. *Bureautique*).
+2. Ouvrez le groupe « parent » en édition (ex. *Travail*).
+3. Depuis la fenêtre principale, **glissez l'icône** du groupe *Bureautique* dans la
+   liste d'items de *Travail*.
+4. Enregistrez. Au lancement de *Travail*, *Bureautique* apparaît comme un item ;
+   un clic ouvre le popup de *Bureautique*.
+
+Il n'existe pas de bouton dédié : l'imbrication se fait uniquement par
+glisser-déposer de l'icône de groupe. Techniquement, AppGroup ajoute le raccourci
+`.lnk` du groupe enfant (dont la description se termine par
+« - AppGroup Shortcut ») ; c'est ce marqueur qui est reconnu à l'affichage.
+
+> Limitation : le lien vers le sous-groupe repose sur la description de ce
+> raccourci. Renommer le groupe enfant ou supprimer son raccourci peut rompre le
+> lien.
+
 ---
 
 ## Partie B — La ligne de commande (CLI Native AOT)
