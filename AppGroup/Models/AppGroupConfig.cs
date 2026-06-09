@@ -7,6 +7,7 @@ namespace AppGroup.Models
     /// Root configuration object for AppGroup.
     /// Contains all groups and global settings.
     /// </summary>
+    [JsonConverter(typeof(AppGroupConfigJsonConverter))]
     public class AppGroupConfig
     {
         /// <summary>
@@ -23,9 +24,11 @@ namespace AppGroup.Models
 
         /// <summary>
         /// All groups in the configuration.
-        /// Key: group ID (string), Value: GroupConfig
+        /// Key: group ID (string), Value: GroupConfig.
+        /// Serialized flat at the root by <see cref="AppGroupConfigJsonConverter"/>
+        /// (NOT via [JsonExtensionData], which is invalid for a strongly-typed
+        /// dictionary and threw InvalidOperationException on every (de)serialize).
         /// </summary>
-        [JsonExtensionData]
         public Dictionary<string, GroupConfig> Groups { get; set; } = new Dictionary<string, GroupConfig>();
 
         /// <summary>
