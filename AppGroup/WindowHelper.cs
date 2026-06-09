@@ -20,7 +20,10 @@ namespace AppGroup {
         private SystemBackdropConfiguration? _configurationSource;
         private MicaBackdrop? _micaBackdrop;
         private DesktopAcrylicController? _acrylicController;
-        private bool _micaEnabled;
+        // Default to enabled: the Mica path is gated by "supported AND enabled".
+        // The field was never assigned (always false), so SetSystemBackdrop(Mica)
+        // silently fell back to no backdrop. true is the intended default.
+        private bool _micaEnabled = true;
         private bool _centerWindow;
         private int _minWidth = 0;
         private int _minHeight = 0;

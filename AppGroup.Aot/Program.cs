@@ -621,7 +621,9 @@ namespace AppGroup.Aot
         {
             string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             string appGroupDir = Path.Combine(appData, "AppGroup");
-            return Path.Combine(appGroupDir, "groups.json");
+            // Must match the WPF app's ConfigService default file name so both
+            // the GUI and this CLI share the exact same configuration.
+            return Path.Combine(appGroupDir, "appgroups.json");
         }
     }
 }

@@ -384,8 +384,10 @@ de commande pour gérer les groupes de raccourcis.
   - `launch <groupName>` — lance tous les raccourcis du groupe.
 - Mode interactif supportant toutes ces commandes.
 - `AddGroup` ne crée plus de raccourcis par défaut (ajout explicite via `additem`).
-- Configuration JSON partagée dans `%LOCALAPPDATA%\AppGroup\groups.json`
-  (compatible avec la version WPF → coexistence/migration possible).
+- Configuration JSON partagée dans `%LOCALAPPDATA%\AppGroup\appgroups.json`
+  (même nom et même format que la version WPF → coexistence réelle CLI ↔ GUI).
+  **(Corrigé 2026-06-09 : la CLI utilisait `groups.json`, la GUI `appgroups.json`
+  → aucune coexistence ; aligné sur `appgroups.json`.)**
 - Projet configuré pour Native AOT : `PublishAot=true`, `PublishTrimmed=true`,
   `SelfContained=true`, `RuntimeIdentifier=win-x64`.
 - **(2026-06-08)** Exclusion du sous-projet jetable `temp/` dans le `.csproj`

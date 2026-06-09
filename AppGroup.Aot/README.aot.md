@@ -4,8 +4,10 @@ Version **Native AOT** d'AppGroup : un exécutable Windows **autonome** (aucun .
 Runtime requis sur la machine cible) qui gère des groupes de raccourcis via une
 interface en ligne de commande.
 
-La configuration est lue/écrite dans `%LOCALAPPDATA%\AppGroup\groups.json`, au
-**même format** que la version WPF → coexistence et migration transparentes.
+La configuration est lue/écrite dans `%LOCALAPPDATA%\AppGroup\appgroups.json`, au
+**même format et même nom de fichier** que la version WPF (voir
+`ConfigService.GetDefaultConfigPath`) → coexistence réelle : un groupe créé via la
+CLI apparaît dans la GUI et inversement.
 
 ---
 

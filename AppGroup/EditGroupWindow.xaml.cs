@@ -44,7 +44,6 @@
             private string? tempIcon;           // Fix: field is now properly assigned in LoadGroupDataAsync
             private string? groupName;
             private FileSystemWatcher? fileWatcher;
-            private string? groupIdFilePath;
             private ExeFileModel? CurrentItem { get; set; }
             private string? originalItemIconPath = null;
             private bool _isLoadingData = false;  // Fix: guard against concurrent loads
@@ -320,9 +319,9 @@
             private void MainWindow_Closed(object sender, WindowEventArgs args) {
                 fileWatcher?.Dispose();
 
-                // Fix: groupIdFilePath is only non-empty when explicitly set; guard before delete
-                if (!string.IsNullOrEmpty(groupIdFilePath) && File.Exists(groupIdFilePath))
-                    File.Delete(groupIdFilePath);
+                // Note: the "lastEdit" file is intentionally NOT deleted here. It is a
+                // shared inter-process marker read by MainWindow / EditGroupHelper, so
+                // removing it on close would break the "Edit this Group" jump-list flow.
 
                 // Fix: tempIcon field (not local variable) is now cleaned up correctly
                 if (!string.IsNullOrEmpty(tempIcon)) {

@@ -16,10 +16,14 @@ namespace AppGroup.Interop
         [DllImport("kernel32.dll")]
         public static extern uint GetCurrentThreadId();
 
-        [DllImport("kernel32.dll")]
+        // CoInitializeEx / CoUninitialize are COM APIs exported by ole32.dll,
+        // NOT kernel32.dll. Declaring the wrong module raised
+        // EntryPointNotFoundException at runtime when icon extraction ran on its
+        // own STA thread.
+        [DllImport("ole32.dll")]
         public static extern IntPtr CoInitializeEx(IntPtr pvReserved, int dwCoInit);
 
-        [DllImport("kernel32.dll")]
+        [DllImport("ole32.dll")]
         public static extern void CoUninitialize();
 
         #endregion
