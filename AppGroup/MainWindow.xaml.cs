@@ -860,8 +860,12 @@ namespace AppGroup {
 
                 var storageFile = await StorageFile.GetFileFromPathAsync(fullShortcutPath);
                 e.Data.SetStorageItems(new List<IStorageItem> { storageFile });
-                e.AllowedOperations = DataPackageOperation.Link;
-                e.Data.RequestedOperation = DataPackageOperation.Link;
+                // Explorer/desktop cannot perform a "Link" drop by default (that needs
+                // Alt), so advertising Link only made every drop show the "no-drop"
+                // cursor. Copy is the natural operation: it drops a copy of the group's
+                // .lnk onto the desktop/taskbar. Link stays allowed for Alt+drag.
+                e.AllowedOperations = DataPackageOperation.Copy | DataPackageOperation.Link;
+                e.Data.RequestedOperation = DataPackageOperation.Copy;
 
             }
             catch (Exception ex) {
